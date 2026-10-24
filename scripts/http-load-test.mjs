@@ -1,10 +1,9 @@
-// HTTP Concurrency Load Test against live localhost:8787
+// 對已啟動、監聽 localhost:8787 的 Worker 做 HTTP 併發壓力測試。
 const BASE_URL = 'http://localhost:8787';
 
 async function run() {
   console.log('🚀 開始真實 HTTP 併發壓力測試 (Target: http://localhost:8787)...');
 
-  // 1. 併發 30 位使用者登入
   const userCount = 30;
   const loginStart = performance.now();
   const users = await Promise.all(
@@ -27,7 +26,6 @@ async function run() {
   const loginTime = performance.now() - loginStart;
   console.log(`✅ [1/4] ${userCount} 位使用者併發 HTTP 登入完成: ${loginTime.toFixed(1)} ms (${(userCount / (loginTime / 1000)).toFixed(0)} req/s)`);
 
-  // 2. 5 位提供者併發提交連結（各 3 名額 = 15 名額）
   const providers = users.slice(0, 5);
   const linkStart = performance.now();
   await Promise.all(
@@ -53,7 +51,6 @@ async function run() {
   const linkTime = performance.now() - linkStart;
   console.log(`✅ [2/4] 5 位提供者併發提交 15 名額完成: ${linkTime.toFixed(1)} ms (${(5 / (linkTime / 1000)).toFixed(0)} req/s)`);
 
-  // 3. 25 位領取者同時發起搶排隊 (15 人獲配 reserved，10 人排隊 waiting)
   const receivers = users.slice(5, 30);
   const queueStart = performance.now();
   const queueResults = await Promise.all(
@@ -84,19 +81,16 @@ async function run() {
     ` ➔ 獲配: ${reservedCount} 位, 等候: ${waitingCount} 位`
   );
 
-  // 4. 15 位獲配者併發解鎖與確認啟用
   const matchedReceivers = queueResults.filter((q) => q.status === 'reserved');
   const confirmStart = performance.now();
   await Promise.all(
     matchedReceivers.map(async ({ receiver }) => {
-      // reveal
       const revealRes = await fetch(`${BASE_URL}/api/queue/reveal`, {
         method: 'POST',
         headers: { Cookie: receiver.cookie },
       });
       if (!revealRes.ok) throw new Error('Reveal failed');
 
-      // confirm
       const confirmRes = await fetch(`${BASE_URL}/api/queue/confirm`, {
         method: 'POST',
         headers: { Cookie: receiver.cookie },
@@ -107,7 +101,6 @@ async function run() {
   const confirmTime = performance.now() - confirmStart;
   console.log(`✅ [4/4] 15 位獲配者併發解鎖與確認完成: ${confirmTime.toFixed(1)} ms (${(30 / (confirmTime / 1000)).toFixed(0)} req/s)`);
 
-  // 驗證看板
   const boardRes = await fetch(`${BASE_URL}/api/board`);
   const boardData = await boardRes.json();
   console.log('\n📊 看板即時狀態:', JSON.stringify(boardData.data));

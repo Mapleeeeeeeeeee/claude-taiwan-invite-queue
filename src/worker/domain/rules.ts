@@ -15,9 +15,9 @@ const CLAUDE_REFERRAL_URL_PATTERN =
   /https?:\/\/(?:www\.)?claude\.ai\/referral\/([A-Za-z0-9_-]+)(?:\/)?(?=[?#\s]|$|[^A-Za-z0-9_/-])/i;
 
 /**
- * Extracts the referral code from raw user input (which may contain surrounding text or query parameters)
- * and returns the normalized URL `https://claude.ai/referral/<referralCode>`.
- * Returns `null` if no valid Claude referral URL is present.
+ * 從使用者貼上的內容（可能夾雜其他文字或網址參數）取出邀請代碼，
+ * 並回傳正規化網址 `https://claude.ai/referral/<referralCode>`。
+ * 內容裡沒有合法的 Claude 邀請連結時回傳 `null`。
  */
 export function extractAndNormalizeReferralLink(rawInput: string): NormalizedReferralLink | null {
   const trimmedInput = rawInput.trim();
@@ -38,9 +38,8 @@ export function extractAndNormalizeReferralLink(rawInput: string): NormalizedRef
 }
 
 /**
- * Determines whether an invite link counts as a "completely invalid link" (完全無效連結).
- * Returns `true` only when all slots have reached a terminal state (none are 'available', 'reserved', or 'revealed'),
- * zero slots are 'confirmed', and at least one slot is 'invalidated'.
+ * 判斷邀請連結是否為完全無效連結：所有名額都已結束（沒有 `available`、`reserved`、`revealed`），
+ * 沒有任何 `confirmed`，且至少有一個 `invalidated`。名額清單為空時回傳 `false`。
  */
 export function isCompletelyInvalidLink(slotStatuses: SlotStatus[]): boolean {
   if (slotStatuses.length === 0) {
@@ -63,8 +62,7 @@ export function isCompletelyInvalidLink(slotStatuses: SlotStatus[]): boolean {
 }
 
 /**
- * 新手軌只開放給「尚未用過試用、也沒有分享過邀請連結」的使用者：
- * 任何軌道上有已確認啟用的領取紀錄，或曾分享過邀請連結，都不具資格。
+ * 任一軌道有 `confirmed` 的領取紀錄，或曾分享過邀請連結，都不具新手軌資格。
  */
 export function isEligibleForNewbieTrack(params: {
   hasConfirmedClaim: boolean;

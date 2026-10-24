@@ -88,12 +88,10 @@ describe('PushToggleButton UX & Subscription Binding', () => {
     const button = screen.getByRole('button', { name: /開啟手機推播通知/ });
     expect(button).not.toBeNull();
 
-    // 點擊開啟推播
     await act(async () => {
       fireEvent.click(button);
     });
 
-    // 未登入狀態下不呼叫後端 API，而是暫存訂閱並進入已允許等待登入綁定狀態
     expect(handleSubscribePush).not.toHaveBeenCalled();
     expect(screen.getByText(/通知權限已允許（登入後自動綁定）/)).not.toBeNull();
   });
@@ -106,21 +104,18 @@ describe('PushToggleButton UX & Subscription Binding', () => {
       <PushToggleHarness me={guestMe} onSubscribePush={handleSubscribePush} />
     );
 
-    // 訪客點擊推播暫存
     const button = screen.getByRole('button', { name: /開啟手機推播通知/ });
     await act(async () => {
       fireEvent.click(button);
     });
     expect(handleSubscribePush).not.toHaveBeenCalled();
 
-    // 使用者登入成功，me.user 出現
     await act(async () => {
       rerender(
         <PushToggleHarness me={loggedInMe} onSubscribePush={handleSubscribePush} />
       );
     });
 
-    // 自動補綁定觸發
     expect(handleSubscribePush).toHaveBeenCalledTimes(1);
     expect(handleSubscribePush).toHaveBeenCalledWith(browserSubscription, '');
     expect(sessionStorage.getItem(PENDING_PUSH_STORAGE_KEY)).toBeNull();

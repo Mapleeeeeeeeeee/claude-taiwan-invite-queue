@@ -30,14 +30,14 @@ export const CONFIRM_DURATION_MINUTES = 30;
 export const RESERVATION_DURATION_MS = RESERVATION_DURATION_HOURS * 60 * 60 * 1000;
 export const CONFIRM_DURATION_MS = CONFIRM_DURATION_MINUTES * 60 * 1000;
 
-// 本機展示登入：Client ID 為預設值時，後端接受 `google-demo-<暱稱>` 形式的 token。
+// Client ID 為預設值時（本機展示登入），後端接受 `google-demo-<暱稱>` 形式的 token。
 export const DEFAULT_GOOGLE_CLIENT_ID = 'dev-google-client-id';
 export const DEMO_TOKEN_PREFIX = 'google-demo-';
 export const DEMO_DEFAULT_NICKNAME = '社團版友';
 
-// 排隊紀錄的 `providerNickname` 為 `null` 時，畫面顯示的稱呼。
+// 排隊紀錄的 `providerNickname` 為 `null` 時，畫面改用這個稱呼。
 export const FALLBACK_PROVIDER_NICKNAME = '好心版友';
-// 感謝小卡的收件人暱稱為 `null` 時，畫面顯示的稱呼。
+// 感謝小卡的收件人暱稱為 `null` 時，畫面改用這個稱呼。
 export const FALLBACK_THANK_YOU_RECIPIENT = '提供者';
 
 export const ERROR_CODES = [

@@ -35,7 +35,7 @@ describe('matchingEngine 撮合引擎 (純領域邏輯)', () => {
 
   it('自我防弊：等候者即使排在第一位，若是該名額的提供者本人，應跳過並配對給下一位', () => {
     const slots: AvailableSlot[] = [
-      { id: 1, linkId: 10, providerUserId: 100, track: 'newbie' }, // 提供者為 User 100
+      { id: 1, linkId: 10, providerUserId: 100, track: 'newbie' },
     ];
     const tickets: WaitingTicket[] = [
       { id: 1, userId: 100, track: 'newbie' }, // User 100 自己在排隊
@@ -56,7 +56,7 @@ describe('matchingEngine 撮合引擎 (純領域邏輯)', () => {
     ];
     const tickets: WaitingTicket[] = [
       { id: 1, userId: 50, track: 'newbie' },
-      { id: 2, userId: 50, track: 'newbie' }, // 同一 User 50 的第二張號碼牌
+      { id: 2, userId: 50, track: 'newbie' }, // 同一 User 50 的第二張票券
       { id: 3, userId: 60, track: 'newbie' },
     ];
 

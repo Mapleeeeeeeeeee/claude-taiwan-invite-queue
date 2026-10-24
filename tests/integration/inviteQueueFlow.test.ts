@@ -421,7 +421,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
 
     it('看板已顯示累計已領取 0 時，解鎖逾 30 分鐘由看板讀取觸發自動確認，同一次讀取就顯示 1', async () => {
       const receiver = await arrangeRevealedClaim();
-      // 讀看板的時間點離確認期限很近，快取過 15 秒就過期，但離上次數 confirmed 席次還不到 60 秒。
+      // 讀看板的時間點離確認期限很近，快取過 15 秒就過期，但離上次數 confirmed 名額還不到 60 秒。
       advanceTimeMs(CONFIRM_WINDOW_MS - BOARD_CACHE_MS);
       expect((await fetchBoard(app, env)).totalConfirmedCount).toBe(0);
       advanceTimeMs(BOARD_CACHE_MS + 1000);
@@ -449,7 +449,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
     advanceTimeMs(30 * 60 * 1000 + 1000);
     invalidateBoardCache();
 
-    // 觸發看版讀取（看板過期時會觸發延遲結算 processExpirations）
+    // 觸發看板讀取（看板過期時會觸發延遲結算 processExpirations）
     const board = await fetchBoard(app, env);
     expect(board.totalConfirmedCount).toBe(1);
     expect(board.thankYouWall).toHaveLength(1);
@@ -810,7 +810,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
     expect(mePAfterLink1.user?.invalidLinkStrikeCount).toBe(0);
     expect(mePAfterLink1.user?.isProviderBlocked).toBe(false);
 
-    // 取消 user2 重排的號碼牌以進行後續乾淨測試
+    // 取消 user2 重排的票券以進行後續乾淨測試
     await user2.cancelQueue('POST');
 
     // 連結 #2 (3 個名額)：0 個 confirmed，1 個 invalidated，2 個 closed -> 記點 1
@@ -922,7 +922,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
     // 此時名額 #2 仍保留給 B。排隊者 C 加入等候
     await receiverC.joinQueue('我是排隊者C，等待下一組可用的邀請碼');
     board = await fetchBoard(app, env);
-    expect(board.availableSlotsCount).toBe(0); // 壞連結名額 #3 已 closed，無可用席次
+    expect(board.availableSlotsCount).toBe(0); // 壞連結名額 #3 已 closed，無可用名額
 
     // 4. B 超過 6 小時未解鎖，保留逾時
     const after7Hours = new Date(currentNow.getTime() + 7 * 60 * 60 * 1000);
@@ -1412,18 +1412,18 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
       await receiverB.reveal();
       await receiverB.confirm();
 
-      // 提供者 A 再分享 1 組新手專屬席次
+      // 提供者 A 再分享 1 組新手專屬名額
       const providerA2 = await loginActor(app, env, 'providerA2@example.com', 'ProviderA2');
       await providerA2.shareLink('https://claude.ai/referral/trackTestLink2', 1, 'newbie');
 
-      // 已領過的 B 排「再領取」軌道，由於池中只有新手席次，B 必須等待，不能分配到新手席次
+      // 已領過的 B 排「再領取」軌道，由於池中只有新手名額，B 必須等待，不能分配到新手名額
       const bRes = await receiverB.joinQueue('我想為第二帳號排隊！', 'community');
       expect(bRes.status).toBe(201);
       const bMe = await receiverB.getMe();
       expect(bMe.myQueue?.status).toBe('waiting');
       expect(bMe.myQueue?.track).toBe('community');
 
-      // 純新手 C 加入「新手」軌道，應立即獲配該新手席次
+      // 純新手 C 加入「新手」軌道，應立即獲配該新手名額
       const cRes = await newbieC.joinQueue('我是純新手！', 'newbie');
       expect(cRes.status).toBe(201);
       const cMe = await newbieC.getMe();
@@ -1444,10 +1444,10 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
         'NewbieFallback'
       );
 
-      // 提供者 P 分享 1 個「再領取」席次
+      // 提供者 P 分享 1 個「再領取」名額
       await providerP.shareLink('https://claude.ai/referral/communitySlotFallback', 1, 'community');
 
-      // 隊列中無人時，純新手加入「新手」軌道，席次向下相容自動分配給該新手
+      // 隊列中無人時，純新手加入「新手」軌道，名額向下相容自動分配給該新手
       await newbie.joinQueue('新手等候中，希望能向下相容', 'newbie');
       const newbieMe = await newbie.getMe();
       expect(newbieMe.myQueue?.status).toBe('reserved');
@@ -1524,7 +1524,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
       );
     });
 
-    // Regression: 撮合只取全軌道最前面的 N 張 waiting 票，前面積壓的再領取票讓新手席次閒置 (review-correctness Blocker 2)
+    // Regression: 撮合只取全軌道最前面的 N 張 waiting 票，前面積壓的再領取票讓新手名額閒置 (review-correctness Blocker 2)
     it('再領取排隊者在新手前面積壓很多時，新手席次仍配給排在後面的新手', async () => {
       const COMMUNITY_TICKETS_AHEAD = 25;
       const provider = await loginActor(
@@ -2262,7 +2262,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
       expect((await user.getMe()).myQueue?.status).toBe('revealed');
     });
 
-    // Regression: 取消 reserved 票的 batch 只憑名額 id 與 reserved 狀態釋出名額，名額已被逾時結算收回並改保留給別人時，會把別人的名額放掉，之後同一組邀請碼配給兩個人
+    // Regression: 取消 reserved 票的 batch 只憑名額 id 與 reserved 狀態釋出名額，名額已被逾時結算收回並改保留給別人時，會把別人的名額放掉，之後同一組邀請代碼配給兩個人
     it('取消的 batch 執行前，自己的保留已逾時結算且名額改保留給下一位時，回 409 INVALID_STATE_TRANSITION，下一位的名額與排隊紀錄不受影響，邀請碼不會配給第二個人', async () => {
       const { receiver: cancelling } = await arrangeReservedClaim();
       const nextInLine = await loginActor(app, env, 'nextInLine@example.com', '候補者B');

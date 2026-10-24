@@ -19,7 +19,7 @@ export interface MatchAssignment {
 }
 
 /**
- * 各軌席次可以配給哪些軌道的票，依優先順序排列。
+ * 各軌名額可以配給哪些軌道的票，依優先順序排列。
  * 撮合引擎的偏好順序與 `slotTracksMatchableBy` 都由這張表推導，雙軌規則只在這裡定義一次。
  */
 const TICKET_TRACKS_BY_SLOT_TRACK: Record<QueueTrack, readonly QueueTrack[]> = {
@@ -28,9 +28,9 @@ const TICKET_TRACKS_BY_SLOT_TRACK: Record<QueueTrack, readonly QueueTrack[]> = {
 };
 
 /**
- * 撮合時處理席次的軌道順序：能配的票種越少的席次軌道越先挑票。
- * 相容性是單向的，新手票能吃再領取席次，再領取票不能吃新手席次；
- * 再領取席次若先挑走新手票，之後的再領取票會等待，新手席次卻閒置。
+ * 撮合時處理名額的軌道順序：能配的票種越少的名額軌道越先挑票。
+ * 相容性是單向的，新手票能吃再領取名額，再領取票不能吃新手名額；
+ * 再領取名額若先挑走新手票，之後的再領取票會等待，新手名額卻閒置。
  * 順序由 `TICKET_TRACKS_BY_SLOT_TRACK` 推導，不另外維護。
  */
 const SLOT_TRACKS_IN_MATCHING_ORDER: readonly QueueTrack[] = [...QUEUE_TRACKS].sort(
@@ -38,8 +38,8 @@ const SLOT_TRACKS_IN_MATCHING_ORDER: readonly QueueTrack[] = [...QUEUE_TRACKS].s
 );
 
 /**
- * 回傳目前有等候票的軌道集合配得到的席次軌道，順序同 `QUEUE_TRACKS`。
- * 呼叫端只需讀取這些軌道的可用席次，其餘軌道的席次不可能被撮合。
+ * 回傳目前有等候票的軌道集合配得到的名額軌道，順序同 `QUEUE_TRACKS`。
+ * 呼叫端只需讀取這些軌道的可用名額，其餘軌道的名額不可能被撮合。
  *
  * @param waitingTicketTracks 目前有等候票的軌道，可重複；空集合回傳空陣列。
  */
@@ -53,18 +53,14 @@ export function slotTracksMatchableBy(
 }
 
 /**
- * 將可用名額依先進先出順序分配給等候中的排隊者。
+ * 將可用名額依先進先出順序分配給等候中的排隊者，並排除分享者領取自己名額的自我配對。
+ * 新手名額（newbie）只配給新手票券；再領取名額（community）先配給 community 票券，沒有才配給新手票券。
+ * 同時有兩種名額時，新手名額先挑票券，所以新手票券先拿新手名額，沒有才降級拿再領取名額；同軌道內仍取最舊的名額。
+ * 單次撮合中，每張票券與每位使用者至多獲配一個名額。
  *
- * 函式遵循 FIFO 規則，並排除分享者領取自身名額的自我配對情況。
- * 雙軌撮合規則：
- * 1. 新手專屬席次（newbie）僅撮合給新手隊列票券。
- * 2. 再領取席次（community）第一優先撮合給 community 票券；無人排隊時改撮合給新手票券（Fallback Matching）。
- * 同時有新手與再領取席次時，新手席次先挑票，所以新手票先拿新手席次，沒有才降級拿再領取席次；同軌道內仍取最舊的席次。
- * 單次撮合批次中，每張排隊號碼牌與每位使用者至多只會獲配一個名額。
- *
- * @param availableSlots 依釋出先後排序的可用席次清單。
+ * @param availableSlots 依釋出先後排序的可用名額清單。
  * @param waitingTickets 依加入順序與優先權排序的等候清單。
- * @returns 回傳撮合成功的席次與排隊號碼牌對應陣列，順序同 `availableSlots`。
+ * @returns 撮合成功的名額與票券配對，順序同 `availableSlots`。
  */
 export function matchTicketsToAvailableSlots(
   availableSlots: readonly AvailableSlot[],

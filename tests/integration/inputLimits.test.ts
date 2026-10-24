@@ -57,7 +57,7 @@ describe('邀請連結與推播訂閱的輸入長度上限', () => {
       expect(await countRows('invite_links')).toBe(0);
     });
 
-    // Regression: 10 MB 的 rawUrlInput 回 500 (QA F-5)；先前回 500，現在由 bodyLimit 在驗證前回 413
+    // Regression: 10 MB 的 rawUrlInput 回 500 (QA F-5)，應由 bodyLimit 在驗證前回 413
     it('10 MB 的 rawUrlInput 回 413 且不寫入資料庫', async () => {
       const provider = await loginActor(app, env, 'huge-link@example.com', '超大輸入提供者');
 
@@ -101,7 +101,7 @@ describe('邀請連結與推播訂閱的輸入長度上限', () => {
       expect(await countRows('push_subscriptions')).toBe(0);
     });
 
-    // Regression: 10 MB 的 endpoint 回 500 (QA F-5)；先前回 500，現在由 bodyLimit 在驗證前回 413
+    // Regression: 10 MB 的 endpoint 回 500 (QA F-5)，應由 bodyLimit 在驗證前回 413
     it('10 MB 的 endpoint 回 413 且不寫入資料庫', async () => {
       const subscriber = await loginActor(app, env, 'huge-push@example.com', '超大輸入訂閱者');
 

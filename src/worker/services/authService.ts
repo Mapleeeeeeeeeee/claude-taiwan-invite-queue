@@ -32,7 +32,7 @@ interface SessionPayload {
 const DEMO_FALLBACK_IDENTIFIER = 'member';
 const DEMO_EMAIL_DOMAIN = 'google-demo.claude-tw.dev';
 const DEV_LOGIN_SUB_PREFIX = 'dev-sub-';
-// dev-login 沒帶暱稱、email 也取不出前綴時，登入者的暱稱。
+// dev-login 沒帶暱稱、email 也取不出前綴時，改用這個暱稱。
 const DEV_LOGIN_FALLBACK_NICKNAME = '測試版友';
 
 function getEmailLocalPart(email: string): string {

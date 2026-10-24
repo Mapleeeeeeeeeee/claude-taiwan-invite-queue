@@ -27,26 +27,21 @@ describe("ReceiverPanel UX & Validation", () => {
 
     const { rerender } = render(<ReceiverPanel {...baseProps} />);
 
-    // 合法字數下，按鈕可用
     const submitBtn = screen.getByRole("button", {
       name: "使用 Google 帳號登入",
     });
     expect(submitBtn.hasAttribute("disabled")).toBe(false);
 
-    // 重新渲染為超過 200 字的訊息
     rerender(
       <ReceiverPanel {...baseProps} thankYouMessageInput={"a".repeat(215)} />,
     );
 
-    // 驗證輸入框沒有 maxLength 限制
     const textarea = screen.getByLabelText(/給提供者的感謝小卡/);
     expect(textarea.getAttribute("maxlength")).toBeNull();
 
-    // 驗證顯示已超過 15 字提示
     expect(screen.getByText(/已超過 15 字/)).not.toBeNull();
     expect(screen.getByText(/感謝小卡不可超過 200 字/)).not.toBeNull();
 
-    // 驗證按鈕變為停用狀態，且點擊不觸發登入或排隊
     const disabledBtn = screen.getByRole("button", {
       name: /字數超過 200 字上限/,
     });
@@ -70,11 +65,9 @@ describe("ReceiverPanel UX & Validation", () => {
       />,
     );
 
-    // 應渲染登入引導卡片而非一般 alert-error
     expect(screen.getByLabelText("登入引導提示")).not.toBeNull();
     expect(screen.getByText("請先使用 Google 帳號登入")).not.toBeNull();
 
-    // 點擊引導卡片中的立即登入按鈕應呼叫 onRequireLogin
     const loginActionBtn = screen.getByRole("button", {
       name: /立即使用 Google 帳號登入/,
     });

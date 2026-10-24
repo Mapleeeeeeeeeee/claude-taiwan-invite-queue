@@ -106,8 +106,8 @@ function isApiSuccessResponse<T>(value: unknown): value is ApiSuccessResponse<T>
 }
 
 /**
- * Creates a strongly-typed API client wrapping `fetch` for all backend endpoints.
- * Throws `ApiClientError` when the server returns a non-2xx status or when a network failure occurs.
+ * 建立封裝 `fetch` 的後端 API client。
+ * 伺服器回非 2xx、網路失敗（`status` 為 0），或回應不是預期的 JSON 格式時，丟出 `ApiClientError`。
  */
 export function createApiClient(fetchImpl: FetchFunction = fetch): InviteApiClient {
   async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {

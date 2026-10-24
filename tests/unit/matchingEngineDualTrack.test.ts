@@ -51,24 +51,17 @@ describe('matchingEngine Dual-Track撮合機制', () => {
 
   it('雙軌混合情況下，各席次依軌道規則與 FIFO 撮合到對應的票券', () => {
     const slots: AvailableSlot[] = [
-      { id: 1, linkId: 10, providerUserId: 1, track: 'newbie' },    // 提供者 1
-      { id: 2, linkId: 11, providerUserId: 2, track: 'community' }, // 提供者 2
-      { id: 3, linkId: 12, providerUserId: 3, track: 'newbie' },    // 提供者 3
+      { id: 1, linkId: 10, providerUserId: 1, track: 'newbie' },
+      { id: 2, linkId: 11, providerUserId: 2, track: 'community' },
+      { id: 3, linkId: 12, providerUserId: 3, track: 'newbie' },
     ];
 
     const tickets: WaitingTicket[] = [
       { id: 101, userId: 1, track: 'community' }, // 使用者 1 (軌道不符 slot 1)
-      { id: 102, userId: 2, track: 'newbie' },    // 使用者 2
-      { id: 103, userId: 4, track: 'newbie' },    // 使用者 4
+      { id: 102, userId: 2, track: 'newbie' },
+      { id: 103, userId: 4, track: 'newbie' },
     ];
 
-    // slot 1 (newbie, prov 1):
-    //   - ticket 101: track is community (skip)
-    //   - ticket 102: userId 2 !== prov 1 && track newbie -> matches ticket 102!
-    // slot 2 (community, prov 2):
-    //   - ticket 101: userId 1 !== prov 2 && track community -> matches ticket 101!
-    // slot 3 (newbie, prov 3):
-    //   - ticket 103: userId 4 !== prov 3 && track newbie -> matches ticket 103!
     const result = matchTicketsToAvailableSlots(slots, tickets);
     expect(result).toHaveLength(3);
 
@@ -111,7 +104,7 @@ describe('matchingEngine Dual-Track撮合機制', () => {
     expect(result).toEqual([{ slot: olderNewbieSlot, ticket: newbieTicket }]);
   });
 
-  // community 席次的優先分支與 Fallback 分支各有一道自我配對排除，兩者都要被走到
+  // community 名額的優先分支與 Fallback 分支各有一道自我配對排除，兩者都要被走到
   it.each([
     { 分支: '優先配對 community 票券', ticketTrack: 'community' as const },
     { 分支: 'Fallback 配對新手票券', ticketTrack: 'newbie' as const },

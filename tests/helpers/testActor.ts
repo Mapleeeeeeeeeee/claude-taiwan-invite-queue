@@ -9,10 +9,8 @@ import type { Env, createApp } from '../../src/worker/index';
 export type AppInstance = ReturnType<typeof createApp>;
 
 /**
- * 測試參與者 (Test Actor)
- *
  * 封裝使用者在系統中的語意化操作（加入排隊、看碼、確認、回報無效、分享連結），
- * 消除測試案例中繁瑣重複的 app.request 底層 HTTP 呼叫與 Cookie 傳遞。
+ * 讓測試案例不必重複寫 `app.request` 的 HTTP 呼叫與 Cookie 傳遞。
  */
 export class TestActor {
   constructor(
@@ -41,9 +39,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 取得使用者的個人狀態 (/api/me)
-   */
   async getMe(): Promise<MeDto> {
     const res = await this.app.request(
       '/api/me',
@@ -58,9 +53,6 @@ export class TestActor {
     return json.data;
   }
 
-  /**
-   * 訂閱 Web Push 通知 (/api/push/subscribe)
-   */
   async subscribePush(
     endpoint: string,
     keys: { p256dh: string; auth: string } = {
@@ -83,9 +75,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 發送測試推播 (/api/push/test)
-   */
   async sendTestPush(): Promise<Response> {
     return this.app.request(
       '/api/push/test',
@@ -98,9 +87,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 加入排隊 (/api/queue)
-   */
   async joinQueue(thankYouMessage?: string, track?: QueueTrack): Promise<Response> {
     const payload: Record<string, unknown> = {};
     if (thankYouMessage !== undefined) {
@@ -124,9 +110,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 取消排隊 (POST /api/queue/cancel 或 DELETE /api/queue)
-   */
   async cancelQueue(method: 'POST' | 'DELETE' = 'POST'): Promise<Response> {
     const path = method === 'POST' ? '/api/queue/cancel' : '/api/queue';
     return this.app.request(
@@ -140,9 +123,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 解鎖領取邀請碼 (/api/queue/reveal)
-   */
   async reveal(): Promise<Response> {
     return this.app.request(
       '/api/queue/reveal',
@@ -155,9 +135,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 確認啟用邀請碼並送出感謝留言 (/api/queue/confirm)
-   */
   async confirm(thankYouMessage?: string): Promise<Response> {
     return this.app.request(
       '/api/queue/confirm',
@@ -174,9 +151,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 回報邀請碼無效 (/api/queue/report-invalid)
-   */
   async reportInvalid(reason?: string): Promise<Response> {
     return this.app.request(
       '/api/queue/report-invalid',
@@ -193,9 +167,6 @@ export class TestActor {
     );
   }
 
-  /**
-   * 提供者分享邀請連結 (/api/links)
-   */
   async shareLink(
     rawUrlInput: string,
     slotCount: number = 1,
@@ -217,7 +188,7 @@ export class TestActor {
   }
 
   /**
-   * 底層請求逃生艙（用於測試非規範 Payload、損毀 Header 或非標準 Method）
+   * 底層請求逃生口，用來測試不合規的 payload、損毀的標頭或非標準的 method。
    */
   async request(path: string, init?: RequestInit): Promise<Response> {
     const headers = new Headers(init?.headers);
@@ -229,7 +200,7 @@ export class TestActor {
 }
 
 /**
- * 模擬開發登入並建立 TestActor
+ * 以開發登入端點登入並回傳帶著 session cookie 的 `TestActor`；登入失敗時丟錯。
  */
 export async function loginActor(
   app: AppInstance,
@@ -262,7 +233,7 @@ export async function loginActor(
 }
 
 /**
- * 讀取公開看板資料 (/api/board)
+ * 讀取公開看板資料；回應不是 200 時丟錯。
  */
 export async function fetchBoard(app: AppInstance, env: Env): Promise<BoardDto> {
   const res = await app.request('/api/board', { method: 'GET' }, env);
@@ -273,9 +244,6 @@ export async function fetchBoard(app: AppInstance, env: Env): Promise<BoardDto> 
   return json.data;
 }
 
-/**
- * 解析 API 回傳之 JSON 資料的型別輔助函式
- */
 export async function parseJson<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }

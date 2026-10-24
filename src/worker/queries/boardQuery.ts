@@ -14,9 +14,9 @@ export const BOARD_CACHE_TTL_MS = 15_000;
 
 /**
  * `totalConfirmedCount` 的快取時間，也就是其他 Worker isolate 上這個數字落後實際狀態的上限。
- * 重算要掃過全部 `confirmed` 席次，D1 又依掃描列數計費，所以這個數字不跟著 15 秒的看板快取重算，
+ * 重算要掃過全部 `confirmed` 名額，D1 又依掃描列數計費，所以這個數字不跟著 15 秒的看板快取重算，
  * 一般的看板快取失效（`invalidateBoardCache`）也不重算它。
- * 席次被確認時，`invalidateBoardAndTotalConfirmedCount` 會清掉本 isolate 的這份快取，
+ * 名額被確認時，`invalidateBoardAndTotalConfirmedCount` 會清掉本 isolate 的這份快取，
  * 讓使用者按下確認啟用後馬上看到數字加一；快取存在各 isolate 的記憶體裡，
  * 清不到其他 isolate，所以它們最多晚 60 秒才追上。
  */
@@ -42,7 +42,7 @@ let totalConfirmedCountCache: TotalConfirmedCountCacheState | null = null;
 // 與 boardCacheGeneration 同理：確認前就開始數的結果不能在確認後寫回快取。
 let totalConfirmedCountGeneration = 0;
 
-/** 清掉看板快取；`totalConfirmedCount` 的快取不在此列，席次被確認時改呼叫 `invalidateBoardAndTotalConfirmedCount`。 */
+/** 清掉看板快取；`totalConfirmedCount` 的快取不在此列，名額被確認時改呼叫 `invalidateBoardAndTotalConfirmedCount`。 */
 export function invalidateBoardCache(): void {
   boardCache = null;
   inFlightBoardPromise = null;
@@ -50,8 +50,8 @@ export function invalidateBoardCache(): void {
 }
 
 /**
- * 席次被確認（`confirmed` 數增加）後呼叫：清掉看板快取與 `totalConfirmedCount` 的快取，
- * 下一次讀看板會重數 confirmed 席次。只清得到本 isolate 的記憶體，其他 isolate 要等 TTL 過期。
+ * 名額被確認（`confirmed` 數增加）後呼叫：清掉看板快取與 `totalConfirmedCount` 的快取，
+ * 下一次讀看板會重數 confirmed 名額。只清得到本 isolate 的記憶體，其他 isolate 要等 TTL 過期。
  */
 export function invalidateBoardAndTotalConfirmedCount(): void {
   invalidateBoardCache();

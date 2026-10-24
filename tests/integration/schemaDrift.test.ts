@@ -6,7 +6,7 @@ import * as schema from '../../src/worker/db/schema';
 import { createTestD1Database } from '../helpers/testD1';
 
 // 部署用 wrangler 套用 migrations/，drizzle-kit 無法拿它們當基準（inline UNIQUE、未命名 CHECK 會被視為差異），
-// 所以改成逐項比對 schema.ts 與 migrations 實際建出來的資料庫。
+// 所以這個測試逐項比對 schema.ts 與 migrations 實際建出來的資料庫。
 
 const dialect = new SQLiteAsyncDialect();
 

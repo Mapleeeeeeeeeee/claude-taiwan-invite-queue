@@ -123,8 +123,8 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Atomically creates an `invite_links` record and `slotCount` `invite_slots` records using `db.batch()`.
-   * Throws `AppError('DUPLICATE_REFERRAL_CODE', ..., 409)` if `referral_code` already exists.
+   * 用 `db.batch()` 原子地建立一筆 `invite_links` 與 `slotCount` 筆 `invite_slots`。
+   * `referral_code` 已存在時丟出 `AppError('DUPLICATE_REFERRAL_CODE', ..., 409)`。
    */
   async createLinkWithSlots(params: {
     providerUserId: number;
@@ -225,8 +225,8 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Inserts a new `'waiting'` queue entry for `userId`.
-   * Throws `AppError('ALREADY_IN_QUEUE', ..., 409)` if the partial unique index detects a concurrent active entry.
+   * 為 `userId` 新增一筆 `waiting` 排隊紀錄。
+   * 並發請求已讓同一位使用者有進行中的紀錄、觸發 partial unique index 時，丟出 `AppError('ALREADY_IN_QUEUE', ..., 409)`。
    */
   async createQueueEntry(params: {
     userId: number;
@@ -259,9 +259,8 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Returns the tracks that currently have at least one `'waiting'` ticket, in `QUEUE_TRACKS` order.
-   * Returns `[]` when nobody is waiting.
-   * Each track is one `LIMIT 1` point lookup on `idx_queue_entries_track_waiting`, so the cost does not grow with the queue length.
+   * 回傳目前至少有一張 `waiting` 票券的軌道，順序同 `QUEUE_TRACKS`；沒有人排隊時回傳 `[]`。
+   * 每個軌道只做一次走 `idx_queue_entries_track_waiting` 的 `LIMIT 1` 點查，成本不隨佇列長度增加。
    */
   async fetchTracksWithWaitingEntries(): Promise<QueueTrack[]> {
     const hasWaitingEntryByTrack = await Promise.all(
@@ -280,10 +279,9 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Returns every `'available'` slot whose track is in `tracks`, oldest first.
-   * Returns `[]` without querying when `tracks` is empty.
-   * Deliberately has no `LIMIT`: one provider's slots can be skipped back to back (self-match),
-   * so truncating the list would starve later providers' slots.
+   * 回傳軌道在 `tracks` 內的所有 `available` 名額，最舊的在前；`tracks` 為空時不查詢，直接回傳 `[]`。
+   * 刻意不加 `LIMIT`，因為同一位提供者的名額可能連續被跳過（自我配對），
+   * 截斷清單會讓後面提供者的名額一直輪不到。
    */
   async fetchAvailableSlotsForMatching(tracks: readonly QueueTrack[]): Promise<AvailableSlot[]> {
     if (tracks.length === 0) {
@@ -306,9 +304,9 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Returns up to `limitPerTrack` `'waiting'` tickets from each track, merged in global FIFO order
-   * (`priority DESC, created_at ASC, id ASC`).
-   * The limit applies per track so a long backlog in one track cannot push the other track's tickets out of the window.
+   * 回傳每個軌道最多 `limitPerTrack` 張 `waiting` 票券，合併後依全域 FIFO 順序
+   * （`priority DESC, created_at ASC, id ASC`）排列。
+   * 上限逐軌計算，所以某一軌大量積壓時，不會把另一軌的票券擠出視窗。
    */
   async fetchWaitingQueueEntriesForMatching(limitPerTrack: number): Promise<WaitingTicket[]> {
     // drizzle 沒有 window function 的建構器，每軌取前 N 筆的排名只能用 sql 寫 ROW_NUMBER() OVER。
@@ -347,8 +345,8 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Atomically assigns an `'available'` slot to a `'waiting'` queue entry using `db.batch()`.
-   * Returns `true` if both records were updated, or `false` if a concurrent operation modified either record.
+   * 用 `db.batch()` 原子地把一個 `available` 名額配給一筆 `waiting` 排隊紀錄。
+   * 兩筆都更新成功時回傳 `true`；任一筆已被並發請求改掉時回傳 `false`。
    */
   async assignSlotToQueueEntry(params: {
     slotId: number;
@@ -666,10 +664,10 @@ export class InviteQueueRepository {
   }
 
   /**
-   * Atomically marks the current revealed slot as `'invalidated'`, closes all sibling `'available'` slots
-   * under the same link, increments the receiver's `invalid_retry_count`, and puts the receiver back into
-   * `'waiting'` with `priority = 1`.
-   * Cross-table `EXISTS` guards ensure no partial updates occur if any precondition fails.
+   * 原子地把目前已解鎖的名額標為 `invalidated`、關閉同連結其餘的 `available` 名額、
+   * 將領取者的 `invalid_retry_count` 加 1，並讓他以 `REQUEUED_PRIORITY` 回到 `waiting`。
+   * 跨表的 `EXISTS` 條件讓任一前提不成立時，不會只改到其中幾張表。
+   * 全部生效時回傳 `true`，前提已被並發請求改掉時回傳 `false`。
    */
   async reportInvalidAndRequeue(params: {
     slotId: number;
@@ -769,7 +767,7 @@ export class InviteQueueRepository {
         ),
     ]);
 
-    // 索引 1 的語句（關閉同連結其餘 available 席次）合法地可能影響 0 筆，所以不納入判斷。
+    // 索引 1 的語句（關閉同連結其餘 available 名額）合法地可能影響 0 筆，所以不納入判斷。
     return allAffectedExactlyOne(results, [0, 2, 3]);
   }
 
@@ -835,7 +833,7 @@ export class InviteQueueRepository {
   }
 
   /**
-   * 把 `reserved` 的名額放回池子。同連結只要有 invalidated 的兄弟席次，釋出的席次就直接 closed，
+   * 把 `reserved` 的名額放回池子。同連結只要有 invalidated 的兄弟名額，釋出的名額就直接 closed，
    * 避免壞連結的碼再被配出去。`extraGuard` 讓呼叫端再加條件（例如保留期限已到）。
    */
   private releaseReservedSlot(slotId: number, nowIso: string, extraGuard?: SQL) {
@@ -851,7 +849,7 @@ export class InviteQueueRepository {
     return this.db
       .update(inviteSlots)
       .set({
-        // drizzle 沒有 CASE 運算式，status 與 closed_at 隨兄弟席次狀態二選一只能用 sql。
+        // drizzle 沒有 CASE 運算式，status 與 closed_at 隨兄弟名額狀態二選一只能用 sql。
         status: sql`case when ${hasInvalidatedSibling} then 'closed' else 'available' end`,
         closedAt: sql`case when ${hasInvalidatedSibling} then ${nowIso} else null end`,
         assignedUserId: null,

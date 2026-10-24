@@ -13,7 +13,8 @@ const IN_APP_BROWSER_RULES: Array<{ pattern: RegExp; appName: string }> = [
 ];
 
 /**
- * 偵測目前是否處於社群軟體（Facebook、LINE、Instagram、Threads 等）的內建瀏覽器（In-App Browser）。
+ * 判斷 User-Agent 是否來自社群軟體（Facebook、LINE、Instagram、Threads 等）的內建瀏覽器。
+ * 未傳 `userAgent` 時檢查 `navigator.userAgent`。
  */
 export function detectInAppBrowser(userAgent?: string): InAppBrowserDetection {
   const ua = userAgent ?? navigator.userAgent;
@@ -26,9 +27,6 @@ export function detectInAppBrowser(userAgent?: string): InAppBrowserDetection {
   return { isInAppBrowser: false, appName: null };
 }
 
-/**
- * 偵測目前網頁是否已安裝並以獨立 PWA 視窗（Standalone 模式）執行。
- */
 export function detectStandalonePwa(): boolean {
   return (
     window.matchMedia?.('(display-mode: standalone)')?.matches === true ||

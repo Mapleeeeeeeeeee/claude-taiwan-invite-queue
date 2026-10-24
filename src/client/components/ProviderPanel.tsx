@@ -86,7 +86,7 @@ export function ProviderPanel({
     await onSubmitInviteLink();
   }
 
-  // 母文件規定分享失敗的原因顯示在輸入框下方；需要登入時改由上方的登入引導接手。
+  // 設計文件規定分享失敗的原因顯示在輸入框下方；需要登入時改由上方的登入引導接手。
   const shareErrorMessage = actionError && !isLoginRequired ? actionError : null;
   const shareErrorRef = useScrollIntoViewOnChange<HTMLDivElement>(shareErrorMessage);
   const shareErrorAlert = shareErrorMessage ? (

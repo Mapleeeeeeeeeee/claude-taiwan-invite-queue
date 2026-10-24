@@ -20,8 +20,8 @@ export interface UsePwaInstallResult {
 export const PwaInstallContext = createContext<UsePwaInstallResult | null>(null);
 
 /**
- * 取得整個頁面共用的 PWA 加入主畫面（A2HS）狀態、安裝動作與 iOS Safari 引導開關。
- * 必須在 `PwaInstallProvider` 底下呼叫，否則直接丟出錯誤。
+ * 取得整個頁面共用的 PWA 安裝狀態、安裝動作與 iOS Safari 安裝引導的開關。
+ * 在 `PwaInstallProvider` 之外呼叫會丟出錯誤。
  */
 export function usePwaInstall(): UsePwaInstallResult {
   const installState = useContext(PwaInstallContext);
@@ -32,7 +32,7 @@ export function usePwaInstall(): UsePwaInstallResult {
 }
 
 /**
- * 監聽瀏覽器的安裝事件並保存安裝狀態；整個頁面只能有一份，由 `PwaInstallProvider` 持有。
+ * 由 `PwaInstallProvider` 呼叫來監聽瀏覽器的安裝事件並保存安裝狀態，整個頁面只能呼叫一次。
  */
 export function usePwaInstallState(): UsePwaInstallResult {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);

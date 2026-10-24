@@ -152,12 +152,10 @@ describe('ThankYouWall Component', () => {
     expect(pauseButton).toBeDefined();
     expect(ticker.classList.contains('is-paused')).toBe(false);
 
-    // Click to pause
     fireEvent.click(pauseButton);
     expect(screen.getByRole('button', { name: /繼續動態輪播/ })).toBeDefined();
     expect(ticker.classList.contains('is-paused')).toBe(true);
 
-    // Click to resume
     fireEvent.click(screen.getByRole('button', { name: /繼續動態輪播/ }));
     expect(screen.getByRole('button', { name: /暫停動態輪播/ })).toBeDefined();
     expect(ticker.classList.contains('is-paused')).toBe(false);
@@ -187,18 +185,15 @@ describe('ThankYouWall Component', () => {
     const viewAllButton = screen.getByRole('button', { name: /查看全部社群感謝小卡/ });
     expect(viewAllButton).toBeDefined();
 
-    // Open modal
     fireEvent.click(viewAllButton);
     expect(screen.getByTestId('modal-all-thank-you')).toBeDefined();
     expect(screen.getByRole('dialog', { name: '社群感謝小卡完整列表' }).hasAttribute('open')).toBe(true);
     expect(screen.getByText(/社群感謝小卡完整列表/)).toBeDefined();
 
-    // Close via close button
     const closeBtn = screen.getByRole('button', { name: '關閉完整列表' });
     fireEvent.click(closeBtn);
     expect(screen.queryByTestId('modal-all-thank-you')).toBeNull();
 
-    // Open again and close via Escape
     fireEvent.click(viewAllButton);
     expect(screen.getByTestId('modal-all-thank-you')).toBeDefined();
     pressEscapeOn(screen.getByRole('dialog', { name: '社群感謝小卡完整列表' }));

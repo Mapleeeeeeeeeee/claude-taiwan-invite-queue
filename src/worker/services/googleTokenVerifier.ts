@@ -14,7 +14,7 @@ const GOOGLE_JWKS_URL = new URL('https://www.googleapis.com/oauth2/v3/certs');
 const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 // Google 公開金鑰會輪替，但新金鑰會先公布；遇到未知 kid 時 jose 還是會重抓，所以這裡只決定平常多久更新一次。
 const JWKS_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
-// Google 憑證沒有 name 欄位、email 也取不出前綴時，登入者的暱稱。
+// Google 憑證沒有 name 欄位、email 也取不出前綴時，改用這個暱稱。
 const GOOGLE_FALLBACK_NICKNAME = 'Claude 版友';
 
 // 這些都代表「這個 token 不可信」；JWKS 抓取逾時、回應格式錯誤、網路失敗等是系統問題，不在此列，要向上傳播。

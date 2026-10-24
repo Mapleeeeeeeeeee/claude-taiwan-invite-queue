@@ -40,7 +40,7 @@ function createSeededRandom(seed: number): () => number {
 }
 
 /**
- * better-sqlite3 是同步的，`Promise.all` 的請求各自一路跑到底，不會在「讀可用席次」與
+ * better-sqlite3 是同步的，`Promise.all` 的請求各自一路跑到底，不會在「讀可用名額」與
  * 「寫入配對」之間交錯，搶同一個名額的競態不會發生。這個裝飾器在每次 D1 存取前讓出事件迴圈，
  * 模擬 Workers 上每次 D1 往返都是真實 I/O 的情境。
  *

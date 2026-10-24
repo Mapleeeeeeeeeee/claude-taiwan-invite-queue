@@ -52,13 +52,13 @@ export interface JoinQueueInput {
   now?: Date;
 }
 
-// 每個可用席次最多只會碰到一張「提供者自己的票」要跳過，所以每軌取席次數的兩倍，就不會因跳過而漏配。
+// 每個可用名額最多只會碰到一張「提供者自己的票」要跳過，所以每軌取名額數的兩倍，就不會因跳過而漏配。
 const MATCHING_CANDIDATES_PER_SLOT = 2;
 
-// 一輪配對被 guard 拒絕，代表讀到的席次或號碼牌已被別的請求配走，要重讀再配。
+// 一輪配對被 guard 拒絕，代表讀到的名額或票券已被別的請求配走，要重讀再配。
 // 壓力測試把上限降到 1 輪（不重讀）時多數交錯順序會失敗，所以重讀是必要的；
 // 上限 5 是避免異常資料下無限迴圈的保險，不是實測出來的收斂輪數。
-// 超過上限時剩下的席次留給下一次觸發或每 5 分鐘的排程。
+// 超過上限時剩下的名額留給下一次觸發或每 5 分鐘的排程。
 const MAX_MATCHING_ROUNDS = 5;
 
 const CLAIMED_NEWBIE_TRACK_MESSAGE =
@@ -86,7 +86,7 @@ export class InviteQueueService {
   /**
    * @param runInBackground 推播送出的方式。有注入時，推播交給它在回應之後繼續送；
    *   沒注入時（單元與整合測試）就地 await，讓測試可以確定性地斷言推播內容。
-   * @param onSlotConfirmed 席次被確認（手動或逾時自動）後呼叫，要連累計已領取數的快取一起清；
+   * @param onSlotConfirmed 名額被確認（手動或逾時自動）後呼叫，要連累計已領取數的快取一起清；
    *   這時不再另外呼叫 `onBoardChanged`，所以它必須也清掉看板快取。
    */
   constructor(
@@ -567,7 +567,7 @@ export class InviteQueueService {
   }
 
   /**
-   * 配對所有可配的席次與排隊號碼牌，回傳實際配對成功的組合；沒有可配對時回傳空陣列。
+   * 配對所有可配的名額與排隊票券，回傳實際配對成功的組合；沒有可配對時回傳空陣列。
    * 某一輪有配對被拒絕（讀到的資料已過期）時會重讀再配，最多 `MAX_MATCHING_ROUNDS` 輪。
    */
   private async matchAvailableSlotsToQueue(now: Date): Promise<MatchAssignment[]> {

@@ -13,7 +13,7 @@ export interface CountdownTimerProps {
   expiresAt: string | null;
   /**
    * 倒數歸零時呼叫，讓呼叫端向伺服器同步逾時後的狀態。
-   * 終點沒變（伺服器尚未判定逾時）時每隔數秒再呼叫，最多共 5 次。
+   * 終點沒變（伺服器尚未判定逾時）時每隔數秒再呼叫，最多共 `MAX_EXPIRE_SYNC_ATTEMPTS` 次。
    */
   onExpire: () => void;
 }

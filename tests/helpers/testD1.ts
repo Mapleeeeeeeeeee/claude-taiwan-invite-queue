@@ -161,9 +161,6 @@ export class SqliteD1PreparedStatement implements D1PreparedStatement {
   }
 }
 
-/**
- * 建立測試專用的 SQLite 記憶體 D1 模擬資料庫
- */
 export function createTestD1Database(migrationPath?: string): {
   db: D1Database;
   sqlite: Database.Database;

@@ -436,13 +436,11 @@ export class WebPushService {
   }
 
   /**
-   * Sends a push notification to all registered devices for `userId`, in parallel.
-   * Automatically removes expired subscriptions when the push server returns 404 or 410.
-   * A failure on one device is logged and never throws, so it neither blocks the other devices
-   * nor aborts the caller's database state changes.
-   * Only the initial subscription lookup can reject.
-   * `failedCount` counts devices that still hold a subscription but could not be reached (sender error or non-2xx),
-   * so a caller can tell "no device subscribed" (all counts 0) from "device present but delivery failed".
+   * 並行推播給 `userId` 的所有裝置，推播服務回 404 或 410 時自動移除該筆失效訂閱。
+   * 單一裝置失敗只會記錄、不會丟錯，所以不會擋住其他裝置，也不會中斷呼叫端的資料庫狀態變更；
+   * 只有一開始查詢訂閱的失敗會 reject。
+   * `failedCount` 計入仍持有訂閱但沒送到的裝置（sender 丟錯或回應非 2xx），
+   * 呼叫端因此能分辨「沒有任何裝置訂閱」（三個計數都是 0）與「有裝置但送達失敗」。
    */
   async sendNotificationToUser(
     userId: number,

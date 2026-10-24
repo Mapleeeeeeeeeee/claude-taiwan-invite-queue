@@ -10,7 +10,7 @@ export function useScrollIntoViewOnChange<T extends HTMLElement>(
   const elementRef = useRef<T>(null);
 
   // 窄螢幕上觸發動作的按鈕與提示相距一個畫面以上，提示出現在畫面外，使用者會以為沒有反應。
-  // 不指定 behavior：預設 auto 跟隨 CSS 的 scroll-behavior，本站沒設平滑捲動，所以不會有動畫，prefers-reduced-motion 自然被尊重。
+  // 不指定 behavior，預設的 auto 會跟隨 CSS 的 scroll-behavior；本站沒設平滑捲動，所以不會有動畫，prefers-reduced-motion 也自然被尊重。
   useEffect(() => {
     if (message) {
       elementRef.current?.scrollIntoView({ block: 'nearest' });
