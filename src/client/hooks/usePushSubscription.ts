@@ -33,6 +33,12 @@ export interface UsePushSubscriptionReturn {
   enablePush: (successMessage?: string) => Promise<boolean>;
 }
 
+/** 給 `useInviteApp` 內部使用的完整回傳；畫面元件只拿得到 `UsePushSubscriptionReturn` 的欄位。 */
+export interface UsePushSubscriptionHandle extends UsePushSubscriptionReturn {
+  /** 丟掉訪客暫存的訂閱（狀態與 sessionStorage 一起清），登出取消瀏覽器訂閱後使用。 */
+  discardPendingGuestSubscription: () => void;
+}
+
 function readNotificationPermission(): PushPermissionState {
   return 'Notification' in window ? Notification.permission : 'unsupported';
 }
@@ -41,7 +47,7 @@ export function usePushSubscription({
   me,
   bindSubscription,
   requestPushSubscription = requestBrowserPushSubscription,
-}: UsePushSubscriptionOptions): UsePushSubscriptionReturn {
+}: UsePushSubscriptionOptions): UsePushSubscriptionHandle {
   const [permissionState, setPermissionState] = useState<PushPermissionState>(
     readNotificationPermission
   );
@@ -51,6 +57,11 @@ export function usePushSubscription({
   const isLoggedIn = me?.user != null;
   const vapidPublicKey = me?.vapidPublicKey;
 
+  const discardPendingGuestSubscription = useCallback(() => {
+    setPendingGuestSubscription(null);
+    clearPendingPushSubscription();
+  }, []);
+
   // 訪客在登入前已允許通知時，登入完成後自動把暫存的訂閱綁到帳號上。
   useEffect(() => {
     if (!isLoggedIn || !pendingGuestSubscription) {
@@ -58,11 +69,10 @@ export function usePushSubscription({
     }
     void bindSubscription(pendingGuestSubscription, '').then((isBound) => {
       if (isBound) {
-        setPendingGuestSubscription(null);
-        clearPendingPushSubscription();
+        discardPendingGuestSubscription();
       }
     });
-  }, [isLoggedIn, pendingGuestSubscription, bindSubscription]);
+  }, [isLoggedIn, pendingGuestSubscription, bindSubscription, discardPendingGuestSubscription]);
 
   const enablePush = useCallback(
     async (successMessage = ''): Promise<boolean> => {
@@ -85,5 +95,6 @@ export function usePushSubscription({
     permissionState,
     hasPendingGuestSubscription: pendingGuestSubscription !== null,
     enablePush,
+    discardPendingGuestSubscription,
   };
 }

@@ -1,14 +1,10 @@
-import { useModalDialog } from "../hooks/useModalDialog";
+import { useModalDialog } from '../hooks/useModalDialog';
 
 export function IosInstallGuideDialog({ onClose }: { onClose: () => void }) {
   const dialogProps = useModalDialog(onClose);
 
   return (
-    <dialog
-      {...dialogProps}
-      className="modal"
-      aria-labelledby="ios-guide-title"
-    >
+    <dialog {...dialogProps} className="modal" aria-labelledby="ios-guide-title">
       <div className="modal-card">
         <h3 id="ios-guide-title" className="modal-title">
           如何將網頁加入 iPhone 主畫面
@@ -35,11 +31,7 @@ export function IosInstallGuideDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={onClose}
-          >
+          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
             我知道了
           </button>
         </div>

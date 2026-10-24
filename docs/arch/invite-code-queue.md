@@ -223,7 +223,7 @@ export class InviteQueueService {
 | GET | `/api/me` | 200 | 無（未登入時回 `user: null`，不是 401） | `fetchMeDto`（MeQuery）；已登入時，先呼叫 `InviteQueueService.processExpirations` |
 | POST | `/api/auth/google` | 200 | 400 `INVALID_INPUT`、401 `INVALID_GOOGLE_TOKEN` | `AuthService.loginWithGoogle` |
 | POST | `/api/auth/dev-login` | 200 | 400 `INVALID_INPUT`、403 `UNAUTHORIZED`（非 development 環境） | `AuthService.loginWithDevAccount` |
-| POST | `/api/auth/logout` | 200 | 無 | 已登入且 body 帶合法的 `{ endpoint }` 時呼叫 `WebPushService.removeSubscription`，只刪除該使用者名下的這筆訂閱（`endpoint` 不存在或屬於別人時不做任何事）；一律刪除 session cookie |
+| POST | `/api/auth/logout` | 200 | 無 | 已登入且 body 帶合法的 `{ endpoint }` 時呼叫 `WebPushService.removeSubscription`，只刪除該使用者名下的這筆訂閱（`endpoint` 不存在或屬於別人時不做任何事）。這項清理交給 `runInBackground`，回應不等它，所以資料庫失敗也不會讓登出失敗；一律刪除 session cookie |
 | POST | `/api/links` | 201 | 401 `UNAUTHORIZED`、429 `RATE_LIMITED`、422 `VALIDATION_ERROR`、400 `INVALID_REFERRAL_URL`、403 `PROVIDER_BLOCKED`、409 `DUPLICATE_REFERRAL_CODE` | `InviteQueueService.submitInviteLink` |
 | POST | `/api/queue` | 201 | 401 `UNAUTHORIZED`、429 `RATE_LIMITED`、422 `VALIDATION_ERROR`、409 `ALREADY_IN_QUEUE`、409 `NEWBIE_TRACK_ONLY` | `InviteQueueService.joinQueue` |
 | POST | `/api/queue/reveal` | 200 | 401 `UNAUTHORIZED`、429 `RATE_LIMITED`、404 `QUEUE_ENTRY_NOT_FOUND`、409 `RESERVATION_EXPIRED`、409 `INVALID_STATE_TRANSITION` | `InviteQueueService.revealSlot` |

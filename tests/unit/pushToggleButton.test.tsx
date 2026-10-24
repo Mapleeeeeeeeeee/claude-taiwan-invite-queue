@@ -187,6 +187,7 @@ describe('PushToggleButton UX & Subscription Binding', () => {
     expect(screen.getByText('此瀏覽器不支援推播')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /開啟手機推播通知/ })).toBeNull();
   });
+  // Regression: 通知權限被封鎖的說明只放在 title 提示，設計文件要求的是畫面上看得到的文字
   it('通知權限被瀏覽器封鎖時，按鈕維持停用，並直接顯示開啟權限的說明文字', () => {
     vi.stubGlobal('Notification', { permission: 'denied', requestPermission: vi.fn() });
 

@@ -2,6 +2,14 @@ import { decodeBase64Url } from 'hono/utils/encode';
 import type { PushSubscriptionInput } from '../../shared/types';
 
 /**
+ * 瀏覽器推播 API 的預期失敗：被拒絕或服務錯誤會丟 `DOMException`；
+ * 不支援的瀏覽器上 `pushManager` 為 undefined、或 VAPID 金鑰格式不合時會丟 `TypeError`。
+ */
+function isExpectedPushApiError(error: unknown): boolean {
+  return error instanceof DOMException || error instanceof TypeError;
+}
+
+/**
  * 向瀏覽器請求通知權限並建立 Web Push 訂閱。
  * 瀏覽器不支援推播、使用者拒絕權限、缺少 `vapidPublicKey` 或訂閱失敗時，一律回傳 `subscription: null`，
  * 呼叫端不可把 null 當成已訂閱；權限結果請讀 `Notification.permission`。
@@ -29,7 +37,7 @@ export async function requestBrowserPushSubscription(params: {
       return { subscription: { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } } };
     }
   } catch (error) {
-    if (!(error instanceof DOMException || error instanceof TypeError)) {
+    if (!isExpectedPushApiError(error)) {
       throw error;
     }
   }
@@ -50,7 +58,7 @@ export async function findBrowserPushSubscription(): Promise<PushSubscription | 
     const registration = await navigator.serviceWorker.getRegistration();
     return (await registration?.pushManager.getSubscription()) ?? null;
   } catch (error) {
-    if (error instanceof DOMException || error instanceof TypeError) {
+    if (isExpectedPushApiError(error)) {
       return null;
     }
     throw error;
@@ -62,7 +70,7 @@ export async function unsubscribeBrowserPush(subscription: PushSubscription): Pr
   try {
     await subscription.unsubscribe();
   } catch (error) {
-    if (!(error instanceof DOMException || error instanceof TypeError)) {
+    if (!isExpectedPushApiError(error)) {
       throw error;
     }
   }

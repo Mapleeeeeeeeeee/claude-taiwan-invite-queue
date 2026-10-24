@@ -82,7 +82,6 @@ export function ReceiverRevealedCard({
   onCountdownExpire,
 }: ReceiverRevealedCardProps) {
   const { hasCopied: hasCopiedUrl, copyText } = useClipboardCopy();
-  const canClickReportInvalid = myQueue.canReportInvalid;
 
   return (
     <div className="queue-state-card state-revealed" data-testid="queue-state-revealed">
@@ -144,7 +143,7 @@ export function ReceiverRevealedCard({
           <span>確認啟用並送出感謝</span>
         </button>
 
-        {canClickReportInvalid ? (
+        {myQueue.canReportInvalid ? (
           <button
             type="button"
             className="btn btn-warning btn-icon"

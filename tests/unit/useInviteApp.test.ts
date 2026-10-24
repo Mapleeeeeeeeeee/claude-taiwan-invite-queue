@@ -724,8 +724,66 @@ describe('useInviteApp 動作成功後的看板重抓', () => {
   });
 });
 
+describe('useInviteApp 暱稱欄位的空白處理', () => {
+  const nicknameSubmittingActions = [
+    {
+      action: '加入排隊',
+      run: (vm: ReturnType<typeof useInviteApp>) => vm.joinQueue(),
+      readSentNickname: (apiClient: InviteApiClient) =>
+        vi.mocked(apiClient.joinQueue).mock.calls[0]?.[0].nickname,
+    },
+    {
+      action: '分享邀請連結',
+      run: (vm: ReturnType<typeof useInviteApp>) => vm.submitInviteLink(),
+      readSentNickname: (apiClient: InviteApiClient) =>
+        vi.mocked(apiClient.submitInviteLink).mock.calls[0]?.[0].nickname,
+    },
+  ];
+
+  async function submitWithNicknameInput(
+    nicknameInput: string,
+    run: (vm: ReturnType<typeof useInviteApp>) => Promise<boolean>,
+    apiClient: InviteApiClient
+  ) {
+    const { result } = renderInviteApp(apiClient);
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => {
+      result.current.setNicknameInput(nicknameInput);
+    });
+    await act(async () => {
+      expect(await run(result.current)).toBe(true);
+    });
+  }
+
+  it.each(nicknameSubmittingActions)(
+    'Given 暱稱前後有空白 When $action Then 送出的暱稱已去除前後空白',
+    async ({ run, readSentNickname }) => {
+      const apiClient = createMockApiClient();
+
+      await submitWithNicknameInput('  小明  ', run, apiClient);
+
+      expect(readSentNickname(apiClient)).toBe('小明');
+    }
+  );
+
+  it.each(nicknameSubmittingActions)(
+    'Given 暱稱欄位只有空白 When $action Then 視同沒填暱稱，不會被伺服器以 422 擋下而讓留空的使用者無法操作',
+    async ({ run, readSentNickname }) => {
+      const apiClient = createMockApiClient();
+
+      await submitWithNicknameInput('   ', run, apiClient);
+
+      expect(readSentNickname(apiClient)).toBeUndefined();
+    }
+  );
+});
+
 describe('useInviteApp 登出時這台裝置的推播訂閱', () => {
   const PUSH_ENDPOINT = 'https://push.example.test/sub/this-device';
+
+  function removeServiceWorker() {
+    delete (navigator as unknown as Record<string, unknown>).serviceWorker;
+  }
 
   function stubServiceWorker(serviceWorker: unknown) {
     Object.defineProperty(navigator, 'serviceWorker', { value: serviceWorker, configurable: true });
@@ -752,7 +810,8 @@ describe('useInviteApp 登出時這台裝置的推播訂閱', () => {
   }
 
   afterEach(() => {
-    delete (navigator as unknown as Record<string, unknown>).serviceWorker;
+    removeServiceWorker();
+    sessionStorage.clear();
   });
 
   // Regression: 登出後這台裝置的推播訂閱仍綁在已登出的帳號，共用裝置會繼續收到該帳號的通知
@@ -799,17 +858,58 @@ describe('useInviteApp 登出時這台裝置的推播訂閱', () => {
     expect(result.current.actionSuccessMessage).toBe('已登出帳號');
   });
 
+  // Regression: 登出後訪客暫存的推播訂閱沒有清掉，再次登入時會把已取消的端點綁到帳號上
+  it('登出取消瀏覽器訂閱後，訪客暫存的訂閱被丟掉，再次登入不會綁定它', async () => {
+    const pendingSubscription = {
+      endpoint: 'https://push.example.test/sub/guest-pending',
+      keys: { p256dh: 'p256dh-key', auth: 'auth-key' },
+    };
+    sessionStorage.setItem('claude_invite_pending_push_sub', JSON.stringify(pendingSubscription));
+    stubBrowserSubscription(async () => true);
+    let currentMe = createStubMe();
+    const apiClient = createMockApiClient({
+      fetchMe: vi.fn(async () => currentMe),
+      // 第一次綁定失敗，暫存的訂閱因此留在登入狀態的頁面上。
+      subscribePush: vi
+        .fn()
+        .mockRejectedValueOnce(new ApiClientError('INTERNAL_ERROR', '系統忙碌中', 500))
+        .mockResolvedValue({ subscribed: true }),
+    });
+    const result = await renderLoggedInApp(apiClient);
+    await waitFor(() => expect(apiClient.subscribePush).toHaveBeenCalledTimes(1));
+    expect(result.current.push.hasPendingGuestSubscription).toBe(true);
+
+    currentMe = createStubMe({ user: null });
+    await logout(result);
+    currentMe = createStubMe();
+    await act(async () => {
+      await result.current.refreshAll();
+    });
+
+    expect(result.current.push.hasPendingGuestSubscription).toBe(false);
+    expect(sessionStorage.getItem('claude_invite_pending_push_sub')).toBeNull();
+    expect(apiClient.subscribePush).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
-    { scenario: '瀏覽器沒有 service worker 功能', serviceWorker: undefined },
-    { scenario: '尚未註冊 service worker', serviceWorker: { getRegistration: async () => undefined } },
+    { scenario: '瀏覽器沒有 service worker 功能', setUpBrowser: removeServiceWorker },
+    {
+      scenario: '瀏覽器的 serviceWorker 屬性存在但值是 undefined',
+      setUpBrowser: () => stubServiceWorker(undefined),
+    },
+    {
+      scenario: '尚未註冊 service worker',
+      setUpBrowser: () => stubServiceWorker({ getRegistration: async () => undefined }),
+    },
     {
       scenario: '這台裝置沒有推播訂閱',
-      serviceWorker: {
-        getRegistration: async () => ({ pushManager: { getSubscription: async () => null } }),
-      },
+      setUpBrowser: () =>
+        stubServiceWorker({
+          getRegistration: async () => ({ pushManager: { getSubscription: async () => null } }),
+        }),
     },
-  ])('$scenario 時，登出請求不帶端點且登出成功', async ({ serviceWorker }) => {
-    stubServiceWorker(serviceWorker);
+  ])('$scenario 時，登出請求不帶端點且登出成功', async ({ setUpBrowser }) => {
+    setUpBrowser();
     const apiClient = createMockApiClient();
     const result = await renderLoggedInApp(apiClient);
 

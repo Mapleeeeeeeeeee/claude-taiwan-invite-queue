@@ -252,19 +252,6 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
     [apiClient, runAction]
   );
 
-  const logout = useCallback(async (): Promise<void> => {
-    await runAction(async () => {
-      const pushSubscription = await findBrowserPushSubscription();
-      await apiClient.logout(pushSubscription?.endpoint);
-      if (pushSubscription) {
-        await unsubscribeBrowserPush(pushSubscription);
-      }
-      setNicknameInput('');
-      setProviderTrackInput(DEFAULT_QUEUE_TRACK);
-      return '已登出帳號';
-    });
-  }, [apiClient, runAction]);
-
   const joinQueue = useCallback(
     (): Promise<boolean> =>
       runAction(async () => {
@@ -345,11 +332,26 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
     [apiClient, runAction]
   );
 
-  const push = usePushSubscription({
+  const { discardPendingGuestSubscription, ...push } = usePushSubscription({
     me,
     bindSubscription: bindPushSubscription,
     requestPushSubscription: options?.requestPushSubscription,
   });
+
+  // 取消瀏覽器訂閱後，訪客暫存的那份也要丟掉，否則下次登入會綁上已失效的端點。
+  const logout = useCallback(async (): Promise<void> => {
+    await runAction(async () => {
+      const pushSubscription = await findBrowserPushSubscription();
+      await apiClient.logout(pushSubscription?.endpoint);
+      if (pushSubscription) {
+        await unsubscribeBrowserPush(pushSubscription);
+        discardPendingGuestSubscription();
+      }
+      setNicknameInput('');
+      setProviderTrackInput(DEFAULT_QUEUE_TRACK);
+      return '已登出帳號';
+    });
+  }, [apiClient, discardPendingGuestSubscription, runAction]);
 
   const submitInviteLink = useCallback(async (): Promise<boolean> => {
     let shareSuccessMessage = '';
