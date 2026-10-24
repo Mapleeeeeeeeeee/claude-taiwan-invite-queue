@@ -498,7 +498,7 @@ POST /api/links  (未被封鎖的使用者，帶 O 的代碼，對照組)
 | 部分寫入的故障注入 | 黑箱無法讓 D1 批次寫入中途失敗 | 以「失敗的請求不改變資料」間接覆蓋（B2-nick/partial1 到 partial3、ST 矩陣的狀態不變）；真正的交易失敗路徑沒有測 |
 | 真實等待 6 小時與 30 分鐘 | 以 SQL 回溯與 cron `time=` 取代 | 真實時鐘與時區行為沒有驗證 |
 | 舊資料遷移 | 資料庫起始為空 | 有舊資料的升級路徑沒有測 |
-| 寫入 API 頻率限制 | 母文件第 3 行寫明未實作 | 不判為缺陷 |
+| 寫入 API 頻率限制 | 本報告測試時尚未實作；之後已加上（`wrangler.toml` 的 `[[ratelimits]]` 與 `src/worker/index.ts` 的寫入路由 middleware），本報告沒有驗證它的行為 | 不判為缺陷 |
 
 ## 12. Coverage 與自我檢查
 
@@ -541,7 +541,7 @@ Step 6 模糊情境：
 - 看板的 `totalConfirmedCount` 目前是 94，等於資料庫的 confirmed 筆數。
 - dev server 沒有重啟。
 - 瀏覽器：Chrome 原本沒有在執行，我啟動了它並已關掉我開的分頁；Chrome 本身還開著。分頁最後一次的登入狀態是訪客。
-- 腳本與結果在 scratchpad：`/private/tmp/claude-501/-Users-maple-Desktop-claude-tw-invite/943cb489-c204-46c2-95cf-7b60a9a4e6a7/scratchpad/`（`qa-lib.mjs`、`a1` 到 `a6`、`b1` 到 `b8`、`c_*`、`inv_global.mjs`、`repro_l06d2.mjs`、`results/*.json`、`merge.mjs` 可重印統計）。
+- 這輪的測試腳本與逐項結果檔沒有收進 repo，統計數字以本報告為準。
 
 ## 14. 整體測試信心
 

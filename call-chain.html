@@ -392,12 +392,12 @@
     <div class="arch-chip">
       <span class="arch-chip-title" style="color: var(--accent-green);">Layer 4 · Data Access</span>
       <span class="arch-chip-name">Repository (3 個)</span>
-      <span class="arch-chip-tech">Drizzle: User / Push · D1 SQL: InviteQueue</span>
+      <span class="arch-chip-tech">Drizzle: User / Push / InviteQueue（batch 交易）</span>
     </div>
     <div class="arch-chip">
       <span class="arch-chip-title" style="color: var(--accent-rose);">Layer 5 · Storage & Push</span>
       <span class="arch-chip-name">Cloudflare D1 + Web Push</span>
-      <span class="arch-chip-tech">SQLite WAL Batch / RFC 8291</span>
+      <span class="arch-chip-tech">D1 Batch / RFC 8291</span>
     </div>
   </div>
 
@@ -413,7 +413,7 @@
       <span>🛡️</span> 3. 回報無效與優先重排鏈
     </button>
     <button class="tab-btn" onclick="switchTab('concurrency-stress')">
-      <span>⚡</span> 4. 高併發搶碼鎖定流轉
+      <span>⚡</span> 4. 80 位同時排隊搶 60 個名額
     </button>
   </div>
 
@@ -433,12 +433,12 @@
           <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/auth/google &amp; /api/auth/dev-login</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-muted);">
-          使用者使用 Google One Tap 或開發者模擬登入，後端完成身分驗證並簽發安全 HttpOnly Cookie。
+          使用者按 Google 官方登入按鈕（彈窗模式），前端把 credential 當作 <code>idToken</code> 送到 <code>POST /api/auth/google</code>。後端以 jose 用 Google JWKS 驗證 ID Token，通過後簽發 HttpOnly Cookie。本機開發（<code>ENVIRONMENT</code> 為 development）可改用 <code>POST /api/auth/dev-login</code> 的開發者模擬登入，其他環境該路由回應 403。
         </p>
         <div class="step-flow">
           <div class="flow-col">
             <span class="flow-label">調用方法 (Service &amp; Repo)</span>
-            <div class="code-box">AuthService.loginWithGoogle() (先 verifyGoogleIdToken) 或 loginWithDevAccount()
+            <div class="code-box">AuthService.loginWithGoogle() (先 verifyGoogleIdToken，以 jose 驗證 Google ID Token) 或 loginWithDevAccount()
 ➔ UserRepository.upsertUserByGoogleProfile()
 ➔ AuthService.createSessionToken() (hono/jwt)</div>
           </div>
@@ -471,7 +471,7 @@
             <span class="flow-label">調用方法 (Service &amp; Repo)</span>
             <div class="code-box">InviteQueueService.joinQueue()
 ➔ processExpirations() (先結算逾時)
-➔ assertEligibleForNewbieTrack() (僅新手首發軌)
+➔ resolveJoinTrack() (省略 track 時依資格自動分軌；明確要求 newbie 但不具資格才拒絕)
 ➔ InviteQueueRepository.createQueueEntry()
 ➔ InviteQueueService.matchAvailableSlotsToQueue()</div>
           </div>
@@ -484,7 +484,7 @@
           </div>
         </div>
         <div class="note-box">
-          <span>💡</span> <strong>業務防重防護</strong>：同一個使用者在狀態為 waiting, reserved, revealed 時無法重複排隊（唯一索引違反時回傳 <code>ALREADY_IN_QUEUE</code>）。新手首發軌另外限制：任一軌道已有 confirmed 紀錄，或曾分享過邀請連結的使用者，排新手首發軌回傳 <code>NEWBIE_TRACK_ONLY</code>，需改排再領取軌。
+          <span>💡</span> <strong>業務防重防護</strong>：同一個使用者在狀態為 waiting, reserved, revealed 時無法重複排隊（唯一索引違反時回傳 <code>ALREADY_IN_QUEUE</code>）。新手首發軌另外限制：任一軌道已有 confirmed 紀錄，或曾分享過邀請連結的使用者，請求明確帶 <code>newbie</code> 時回傳 <code>NEWBIE_TRACK_ONLY</code>，需改排再領取軌；請求省略 <code>track</code> 時，這類使用者直接排再領取軌。
         </div>
       </div>
 
@@ -506,8 +506,8 @@
           <div class="flow-col">
             <span class="flow-label">調用方法 (Service &amp; Repo)</span>
             <div class="code-box">InviteQueueService.submitInviteLink()
-➔ processExpirations() (先結算逾時)
 ➔ rules.extractAndNormalizeReferralLink()
+➔ processExpirations() (先結算逾時)
 ➔ UserRepository.findUserById() ➔ rules.isProviderBlocked()
 ➔ InviteQueueRepository.createLinkWithSlots() (D1 Batch)
 ➔ InviteQueueService.matchAvailableSlotsToQueue()</div>
@@ -538,7 +538,7 @@ INSERT INTO invite_slots (status='available', track) * N
           <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/queue/reveal</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-muted);">
-          在 6 小時保留期內，未解鎖前 GET /api/me 絕不回傳真實網址；領取者點擊解鎖後才回傳 URL，並啟動 30 分鐘啟用倒數窗口。
+          在 6 小時保留期內尚未解鎖時，<code>GET /api/me</code> 的 <code>myQueue.referralUrl</code> 為 null；領取者點擊解鎖後，<code>POST /api/queue/reveal</code> 才回傳邀請網址，並啟動 30 分鐘啟用倒數窗口。
         </p>
         <div class="step-flow">
           <div class="flow-col">
@@ -569,7 +569,7 @@ INSERT INTO invite_slots (status='available', track) * N
           <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/queue/confirm</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-muted);">
-          領取者在 Claude.ai 註冊啟用成功後，點擊「確認啟用並送出感謝」，名額結案，感謝小卡即時推播給提供者並刊登至首頁感謝牆。
+          領取者在 Claude.ai 註冊啟用成功後，點擊「確認啟用並送出感謝」，名額結案，感謝小卡以背景推播送給提供者，並在看板快取更新後刊登至首頁感謝牆。
         </p>
         <div class="step-flow">
           <div class="flow-col">
@@ -578,14 +578,15 @@ INSERT INTO invite_slots (status='available', track) * N
 ➔ InviteQueueRepository.confirmRevealedSlot()
 ➔ notifyProviderOnSlotConfirmed() ➔ syncProviderStrikeCount()
 ➔ dispatchPush() ➔ WebPushService.sendNotificationToUser(providerId) (背景送出)
-➔ onBoardChanged() (invalidateBoardCache 快取無效化)</div>
+➔ onSlotConfirmed()，即 invalidateBoardAndTotalConfirmedCount() (清本 isolate 的看板快取與 totalConfirmedCount 快取)</div>
           </div>
           <div class="flow-col">
             <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
             <div class="code-box"><span class="sql-highlight">UPDATE invite_slots</span> SET status='confirmed', confirmed_at=now
 <span class="sql-highlight">UPDATE queue_entries</span> SET status='confirmed', confirmed_at=now
 ➔ 狀態結案: <span class="state-tag state-confirmed">confirmed</span>
-➔ 感謝牆即時顯示此張小卡與雙方暱稱</div>
+➔ 同一個請求內清除本 isolate 的看板快取
+➔ 其他 isolate 的快取最多 15 秒後過期，之後的讀取才在感謝牆顯示此張小卡與雙方暱稱</div>
           </div>
         </div>
       </div>
@@ -607,18 +608,19 @@ INSERT INTO invite_slots (status='available', track) * N
           <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-rose);">wrangler.toml: crons = ["*/5 * * * *"]</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-muted);">
-          逾時結算有四種觸發時機：每 5 分鐘執行的 <code>scheduled()</code>、登入狀態的 GET /api/me、看板快取過期後的 GET /api/board，以及提交連結、加入排隊、取消、解鎖、回報無效這幾支寫入 API（確認啟用不會先結算）。結算時掃描所有 <code>status = 'reserved'</code> 且 <code>reserve_expires_at &lt;= now</code> 的排隊紀錄（每次最多 100 筆）。
+          逾時結算有四種觸發時機：每 5 分鐘執行的 <code>scheduled()</code>、登入狀態的 GET /api/me、看板快取過期後的 GET /api/board，以及提交連結、加入排隊、取消、解鎖、回報無效這幾支寫入 API（確認啟用不會先結算）。結算時掃描所有 <code>status = 'reserved'</code> 且 <code>reserve_expires_at &lt;= now</code> 的排隊紀錄（每次最多 100 筆），並以同樣上限掃描 <code>status = 'revealed'</code> 且 <code>confirm_expires_at &lt;= now</code> 的排隊紀錄，自動確認啟用。
         </p>
         <div class="step-flow">
           <div class="flow-col">
             <span class="flow-label">調用方法 (Service &amp; Repo)</span>
             <div class="code-box">InviteQueueService.processExpirations()
-➔ InviteQueueRepository.fetchExpiredReservations()
+➔ InviteQueueRepository.fetchExpiredReservations() 與 fetchExpiredRevealedSlots() (同時查詢)
 ➔ InviteQueueRepository.expireReservationAndReleaseSlot() (逐筆)
-➔ fetchExpiredRevealedSlots() ➔ confirmRevealedSlot() (解鎖滿 30 分鐘自動確認)
+➔ confirmRevealedSlot() (逐筆，解鎖滿 30 分鐘自動確認)
+➔ 每筆自動確認成功後，馬上背景推播通知提供者
 ➔ syncProviderStrikeCount() (受影響的提供者)
 ➔ 有逾時釋出的名額時: matchAvailableSlotsToQueue()
-➔ 自動確認的名額: 背景推播通知提供者</div>
+➔ 清快取: 有自動確認時 onSlotConfirmed()，只有逾時釋出時 onBoardChanged()</div>
           </div>
           <div class="flow-col">
             <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
@@ -740,12 +742,12 @@ INSERT INTO invite_slots (status='available', track) * N
           <div class="step-title-group">
             <span class="badge badge-actor-receiver">80 併發領取者</span>
             <span class="badge badge-post">CONCURRENT POST</span>
-            <span class="step-title">高併發搶排隊與 SQLite 樂觀鎖撮合</span>
+            <span class="step-title">同時排隊搶名額與守衛條件撮合</span>
           </div>
-          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green);">Throughput: ~2000 req/s</span>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green);">tests/stress/concurrency.stress.test.ts</span>
         </div>
         <p style="font-size: 0.9rem; color: var(--text-muted);">
-          80 位領取者同時發起請求搶 60 個可用名額。D1 事務透過單一寫入者 WAL 鎖保證資料嚴格一致；配對被別的請求搶先時，守衛條件使該筆寫入落空，撮合迴圈重讀後再配，最多 5 輪。
+          壓力測試先讓 20 位提供者各提交一組 3 個名額的連結（共 60 個名額），再用 <code>Promise.all</code> 讓 80 位領取者同時 <code>POST /api/queue</code>。測試用 better-sqlite3 模擬 D1，並在每次 D1 存取前依固定種子讓出事件迴圈 1 到 4 次（共 6 組種子），讓請求在「讀可用名額」與「寫入配對」之間交錯。配對被別的請求搶先時，守衛條件使該筆寫入落空，撮合迴圈重讀後再配，最多 5 輪。
         </p>
         <div class="step-flow">
           <div class="flow-col">
@@ -755,17 +757,17 @@ INSERT INTO invite_slots (status='available', track) * N
 ➔ 每輪先查有 waiting 票券的軌道，只讀配得到的軌道的 available 名額，
    再每軌用 ROW_NUMBER() 取前 N 張票券
 ➔ InviteQueueRepository.assignSlotToQueueEntry() (D1 batch())
-➔ 嚴格雙表 WHERE 條件:
-   WHERE id=? AND status='available'
-   WHERE id=? AND status='waiting'
+➔ 兩條 UPDATE 的 WHERE 各帶 status 守衛與 EXISTS:
+   名額: WHERE id=? AND status='available'
+   排隊紀錄: WHERE id=? AND status='waiting'
 ➔ 任一筆未影響 1 列即視為被拒絕，下一輪重讀再配</div>
           </div>
           <div class="flow-col">
-            <span class="flow-label">嚴格不變性 (Invariant) 驗證結果</span>
-            <div class="code-box">✓ 剛好 60 位拿到 <span class="state-tag state-reserved">reserved</span>
-✓ 剛好 20 位進入 <span class="state-tag state-waiting">waiting</span> (排隊序號 1~20 無錯亂)
-✓ 0 筆雙重配對 (Zero Double-Allocation)
-✓ 0 筆遺漏名額 (Zero Leaked Slots)</div>
+            <span class="flow-label">測試斷言的不變性 (Invariant)</span>
+            <div class="code-box">✓ 剛好 60 個名額與 60 筆排隊紀錄為 <span class="state-tag state-reserved">reserved</span>，available 名額為 0
+✓ 剛好 20 筆排隊紀錄為 <span class="state-tag state-waiting">waiting</span> (不交錯的那條測試另外檢查 GET /api/me 的排隊順位恰為 1~20)
+✓ 0 個名額被兩筆排隊紀錄占用 (Zero Double-Allocation)
+✓ reserved 的名額與排隊紀錄互相對應 (assigned_user_id 與 slot_id 一致)</div>
           </div>
         </div>
       </div>
@@ -775,16 +777,16 @@ INSERT INTO invite_slots (status='available', track) * N
   <!-- 底部重點摘要卡片 -->
   <div class="summary-grid">
     <div class="summary-card">
-      <h4>🔒 隱私安全保證 (Zero-Leak)</h4>
-      <p>在狀態變為 <code>revealed</code> 之前，任何 API（包含 GET /api/me）絕不對外輸出 referralUrl，徹底杜絕搶碼爬蟲。</p>
+      <h4>🔒 邀請網址的可見範圍</h4>
+      <p>排隊紀錄的 <code>referralUrl</code>（<code>GET /api/me</code> 的 <code>myQueue</code> 與 <code>myConfirmedClaim</code>）只在狀態為 <code>revealed</code> 或 <code>confirmed</code> 時有值，其餘狀態為 null。提供者自己分享的連結網址一直顯示在 <code>mySharedLinks[].normalizedUrl</code>。</p>
     </div>
     <div class="summary-card">
       <h4>📦 D1 Batch 原子交易</h4>
       <p>跨表狀態轉移（如配對、回報無效同組隔離）全面使用 D1 Batch，確保多表要嘛全成、要嘛全敗，零部分寫入殘留。</p>
     </div>
     <div class="summary-card">
-      <h4>⚡ Edge 原生高效能</h4>
-      <p>由 Cloudflare Workers 邊緣節點直接執行 Hono 路由與 D1 查詢，冷啟動耗時小於 5ms，高併發吞吐量達 1,000+ RPS。</p>
+      <h4>🧪 壓力測試涵蓋範圍</h4>
+      <p><code>tests/stress/concurrency.stress.test.ts</code> 以 better-sqlite3 模擬 D1，驗證 80 位領取者搶 60 個名額後的資料一致性。<code>scripts/http-load-test.mjs</code> 對 <code>localhost:8787</code> 的本機 Worker 送出真實 HTTP 請求（30 位登入、5 位提供者提交共 15 個名額、25 位領取者排隊、獲配者解鎖並確認），只在執行時印出各階段耗時與 req/s。</p>
     </div>
   </div>
 

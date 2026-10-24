@@ -549,7 +549,7 @@
   <header>
     <div class="badge-bar">
       <span class="badge badge-blue">Cloudflare Workers + D1</span>
-      <span class="badge badge-green">Drizzle ORM (users / push)</span>
+      <span class="badge badge-green">Drizzle ORM (全部資料表)</span>
       <span class="badge badge-amber">Pure Matching Engine</span>
       <span class="badge badge-purple">Web Push Notification</span>
       <span class="badge badge-rose">Actor DSL Testing</span>
@@ -597,7 +597,7 @@
             </div>
             <div class="comp-card">
               <div class="comp-name">useInviteApp.ts <span class="comp-tag">ViewModel</span></div>
-              <div class="comp-detail">管理登入狀態、看板與個人狀態載入（開啟頁面、動作完成與下拉重整時重抓，沒有背景輪詢）、表單輸入與回報無效確認彈窗；排隊軌道依 <code>isEligibleForNewbieTrack</code> 自動帶入。</div>
+              <div class="comp-detail">管理登入狀態、看板與個人狀態載入（開啟頁面、動作完成、下拉重整，以及頁面從背景回到前景時重抓；沒有背景輪詢）、表單輸入與回報無效確認彈窗；排隊軌道依 <code>isEligibleForNewbieTrack</code> 自動帶入。</div>
             </div>
             <div class="comp-card">
               <div class="comp-name">apiClient.ts <span class="comp-tag">Transport</span></div>
@@ -608,8 +608,8 @@
               <div class="comp-detail">請求通知權限，等 ServiceWorker ready（<code>main.tsx</code> 註冊 <code>sw.js</code>）後，把 VAPID 公鑰轉成 applicationServerKey 並透過 PushManager 訂閱；失敗時回傳 <code>null</code>。</div>
             </div>
             <div class="comp-card">
-              <div class="comp-name">googleIdToken.ts <span class="comp-tag">Login</span></div>
-              <div class="comp-detail">載入 Google Identity Services 且設定正式 Client ID 時取得真實 credential，否則改用依暱稱產生的展示用 token。</div>
+              <div class="comp-name">GoogleSignInButton.tsx、GoogleSignInProvider.tsx <span class="comp-tag">Login</span></div>
+              <div class="comp-detail">GoogleSignInProvider 載入 Google Identity Services，並用 <code>@react-oauth/google</code> 的 <code>GoogleLogin</code>（彈窗模式）渲染官方登入按鈕，GoogleSignInButton 提供按鈕的位置；登入後的 credential 由 <code>App.tsx</code> 送到後端。本機開發（<code>devLoginEnabled</code>）時不載入 Google 的 script，按鈕改為自訂登入鈕，登入時送出 <code>demoGoogleIdToken.ts</code> 產生的展示用 token。</div>
             </div>
             <div class="comp-card">
               <div class="comp-name">browserEnvironment.ts <span class="comp-tag">Env Detect</span></div>
@@ -629,11 +629,15 @@
           <div class="component-cards">
             <div class="comp-card">
               <div class="comp-name">secureHeaders() <span class="comp-tag">Security</span></div>
-              <div class="comp-detail">對 <code>/api/*</code> 注入 HSTS, X-Frame-Options (SAMEORIGIN), X-Content-Type-Options (nosniff) 與 Referrer-Policy (no-referrer)，皆為 Hono 預設值。</div>
+              <div class="comp-detail">對 <code>/api/*</code> 注入 Hono 預設的 Strict-Transport-Security 與 X-Content-Type-Options: nosniff，並把 X-Frame-Options 覆寫為 DENY、Referrer-Policy 覆寫為 strict-origin-when-cross-origin，與 <code>public/_headers</code> 對靜態資源設定的值一致。</div>
             </div>
             <div class="comp-card">
               <div class="comp-name">Session 中介層 <span class="comp-tag">Auth</span></div>
               <div class="comp-detail"><code>app.use('/api/*')</code> 每個請求建立一次 <code>createServices()</code>，解析 <code>claude_tw_session</code> JWT Cookie 並把 <code>userId</code>（未登入或驗證失敗為 <code>null</code>）放進 Context；需要登入的路由再由 <code>requireUserId()</code> 回傳 401。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">limitRequestBody、WRITE_RATE_LIMITER <span class="comp-tag">Guard</span></div>
+              <div class="comp-detail"><code>limitRequestBody</code> 把 <code>/api/*</code> 的請求本文上限設為 8 KB，超過回 413 <code>INVALID_INPUT</code>。寫入 API（<code>POST /api/links</code>、<code>/api/queue/*</code>、<code>/api/push/*</code>）在登入檢查之後，以使用者 id 為 key 套用 <code>WRITE_RATE_LIMITER</code>，每 60 秒最多 20 次，超過回 429 <code>RATE_LIMITED</code>。這兩項檢查都排在 <code>zValidator()</code> 之前；Cloudflare 的計數是各資料中心的近似值，只用來擋失控的重複請求。</div>
             </div>
             <div class="comp-card">
               <div class="comp-name">zValidator() <span class="comp-tag">Validation</span></div>
@@ -803,7 +807,7 @@
                 </div>
                 <div class="step-desc">
                   <span class="code-symbol">apiClient.fetchBoard()</span>
-                  <span class="step-note">首頁載入、動作完成與下拉重整時，由 <code>refreshAll()</code> 與 <code>fetchMe()</code> 一起重抓；前端沒有背景輪詢。</span>
+                  <span class="step-note">首頁載入、動作完成、下拉重整與頁面回到前景時，<code>fetchLatest()</code> 同時呼叫 <code>fetchBoard()</code> 與 <code>fetchMe()</code> 重抓；動作完成與回到前景的重抓以 <code>cache: 'reload'</code> 略過瀏覽器的 15 秒快取。前端沒有背景輪詢。</span>
                 </div>
               </div>
               <div class="flow-step">
@@ -812,7 +816,7 @@
                   <span class="step-actor">Hono Router</span>
                 </div>
                 <div class="step-desc">
-                  <span class="code-symbol">secureHeaders() → logger() → createServices()</span>
+                  <span class="code-symbol">secureHeaders() → logger() → limitRequestBody → createServices()</span>
                   <span class="step-note">注入安全標頭並記錄請求；每個請求只建立一次 services，並帶入 <code>runInBackground</code>。</span>
                 </div>
               </div>
@@ -843,7 +847,7 @@
                 </div>
                 <div class="step-desc">
                   <span class="repo-symbol">SELECT COUNT(*) ... GROUP BY track & SELECT thankYouWall LIMIT 30</span>
-                  <span class="step-note">依軌道聚合可用名額數、等待人數與最新 30 筆感謝卡片，並快取 15 秒；累計領取數另以 10 分鐘的獨立快取計算，避免每次重算都掃全部已確認席次。</span>
+                  <span class="step-note">依軌道聚合可用名額數、等待人數與最新 30 筆感謝卡片，並快取 15 秒；累計領取數另以 60 秒的獨立快取計算，避免每次重算都掃全部已確認席次；席次被確認時，會一併清掉本 isolate（處理這個請求的 Workers 執行實例）記憶體中的這份快取。</span>
                 </div>
               </div>
             </div>
@@ -904,7 +908,7 @@
                 </div>
                 <div class="step-desc">
                   <span class="code-symbol">processExpirations(now)</span>
-                  <span class="step-note">已登入時優先處理逾時狀態，確保讀取到的個人狀態絕對即時準確。</span>
+                  <span class="step-note">已登入時先結算逾時狀態，讀到的個人狀態反映結算後的資料庫內容。</span>
                 </div>
               </div>
               <div class="flow-step">
@@ -931,7 +935,7 @@
               </div>
               <div class="spec-block">
                 <div class="spec-title">Security Invariants</div>
-                <div class="spec-val">在 reserved 狀態下嚴格禁止回傳邀請碼；僅在 revealed 與 confirmed 狀態才暴露邀請網址。</div>
+                <div class="spec-val"><code>myQueue.referralUrl</code> 僅在 revealed 與 confirmed 狀態才有值。<code>mySharedLinks[].normalizedUrl</code> 是提供者自己分享的連結，任何狀態都會回傳，其他使用者看不到。</div>
               </div>
             </div>
           </div>
@@ -954,11 +958,11 @@
               <div class="flow-step">
                 <div class="step-source">
                   <span class="step-layer layer-lbl-client">Client</span>
-                  <span class="step-actor">googleIdToken.ts</span>
+                  <span class="step-actor">GoogleSignInProvider.tsx</span>
                 </div>
                 <div class="step-desc">
                   <span class="code-symbol">POST { idToken, nickname?: string }</span>
-                  <span class="step-note">前端透過 <code>resolveGoogleIdToken()</code> 取得 Google credential；未設定正式 Client ID 時，改送 <code>google-demo-&lt;暱稱&gt;</code> 展示用 token。</span>
+                  <span class="step-note">前端由 Google 官方登入按鈕取得 credential 後送出。本機開發時，未登入的操作改送 <code>buildDemoGoogleIdToken()</code>（<code>demoGoogleIdToken.ts</code>）產生的 <code>google-demo-&lt;暱稱&gt;</code> 展示用 token。</span>
                 </div>
               </div>
               <div class="flow-step">
@@ -978,7 +982,7 @@
                 </div>
                 <div class="step-desc">
                   <span class="code-symbol">loginWithGoogle({ idToken, nickname, now })</span>
-                  <span class="step-note">development 環境接受展示用 token；其餘環境呼叫 <code>googleTokenVerifier()</code> 向 Google tokeninfo 驗證，檢查 aud 等於 <code>GOOGLE_CLIENT_ID</code> 後萃取 sub, email, name。</span>
+                  <span class="step-note">development 環境接受展示用 token；其餘環境呼叫 <code>googleTokenVerifier.ts</code> 的 <code>defaultGoogleTokenVerifier</code>，以 jose 用 Google JWKS 驗證 RS256 簽章，檢查 iss、exp 與 aud 等於 <code>GOOGLE_CLIENT_ID</code>，並要求 email_verified 為 true，之後萃取 sub, email, name。</span>
                 </div>
               </div>
               <div class="flow-step">
@@ -1118,8 +1122,8 @@
                   <span class="step-actor">auth + zValidator</span>
                 </div>
                 <div class="step-desc">
-                  <span class="code-symbol">submitLinkSchema + requireUserId()</span>
-                  <span class="step-note">先檢驗 <code>slotCount</code> 必須為 1, 2 或 3（預設 3）、<code>track</code> 必須為 newbie 或 community（預設 newbie），失敗回傳 <code>422 VALIDATION_ERROR</code>；再由 <code>requireUserId()</code> 擋下未登入的請求。</span>
+                  <span class="code-symbol">requireUserId() → WRITE_RATE_LIMITER → submitLinkSchema</span>
+                  <span class="step-note">先由 <code>requireUserId()</code> 擋下未登入的請求，回傳 <code>401 UNAUTHORIZED</code>；再依使用者 id 檢查寫入限流，超過回傳 <code>429 RATE_LIMITED</code>。通過後才檢驗 <code>slotCount</code> 必須為 1, 2 或 3（預設 3）、<code>track</code> 必須為 newbie 或 community（預設 newbie），失敗回傳 <code>422 VALIDATION_ERROR</code>。</span>
                 </div>
               </div>
               <div class="flow-step">
@@ -1220,7 +1224,7 @@
             <div class="api-identity">
               <span class="method-tag method-post">POST</span>
               <span class="api-endpoint">/api/queue</span>
-              <span class="api-summary">領取者加入排隊 (池中有碼時即刻配對)</span>
+              <span class="api-summary">領取者加入排隊 (有可用名額時，在同一個請求內配對)</span>
             </div>
             <div class="api-meta">
               <span class="badge badge-amber">需登入 (Cookie)</span>
@@ -1234,8 +1238,8 @@
                   <span class="step-actor">auth + zValidator</span>
                 </div>
                 <div class="step-desc">
-                  <span class="code-symbol">joinQueueSchema + requireUserId()</span>
-                  <span class="step-note">校驗 <code>thankYouMessage</code> 5~200 字元（trim 後）、<code>track</code> 為 newbie 或 community（預設 newbie），失敗回傳 <code>422 VALIDATION_ERROR</code>。前端依 <code>isEligibleForNewbieTrack</code> 自動送出 <code>track</code>，畫面沒有軌道選項。</span>
+                  <span class="code-symbol">requireUserId() → WRITE_RATE_LIMITER → joinQueueSchema</span>
+                  <span class="step-note">與提交連結相同，先做登入檢查（401）與寫入限流（429），通過後才校驗 <code>thankYouMessage</code> 5~200 字元（trim 後）、<code>track</code> 若有帶必須為 newbie 或 community，失敗回傳 <code>422 VALIDATION_ERROR</code>。<code>track</code> 可省略且不補預設值，省略時由後端依新手資格決定軌道。前端依 <code>isEligibleForNewbieTrack</code> 自動送出 <code>track</code>，畫面沒有軌道選項。</span>
                 </div>
               </div>
               <div class="flow-step">
@@ -1244,11 +1248,11 @@
                   <span class="step-actor">inviteQueueService</span>
                 </div>
                 <div class="step-desc">
-                  <span class="code-symbol">joinQueue() → processExpirations(now) → assertEligibleForNewbieTrack()</span>
+                  <span class="code-symbol">joinQueue() → processExpirations(now) → resolveJoinTrack()</span>
                   <span class="step-note">
-                    先結算逾時。只有 <code>track</code> 為 newbie 時才檢查新手首發軌資格：<br>
+                    先結算逾時，再由 <code>resolveJoinTrack()</code> 決定軌道。省略 <code>track</code> 或明確帶 newbie 時才檢查新手首發軌資格；明確帶 community 時不檢查：<br>
                     1. 並行讀取 <code>hasConfirmedClaimByUser()</code> 與 <code>hasSharedLinksByUser()</code>。任一軌道曾 confirmed，或曾分享過邀請連結，即不具資格。<br>
-                    2. 不具資格時，若使用者同時已在 waiting/reserved/revealed，先回傳 <code>409 ALREADY_IN_QUEUE</code>；否則回傳 <code>409 NEWBIE_TRACK_ONLY</code>。終身僅限領取 1 次的規則只適用新手首發軌，再領取軌不受限。
+                    2. 具資格時排入 newbie。省略 <code>track</code> 且不具資格時，改排入 community。明確帶 newbie 且不具資格時，若使用者已在 waiting/reserved/revealed，回傳 <code>409 ALREADY_IN_QUEUE</code>，否則回傳 <code>409 NEWBIE_TRACK_ONLY</code>。終身僅限領取 1 次的規則只適用新手首發軌，再領取軌不受限。
                   </span>
                 </div>
               </div>
@@ -1391,8 +1395,8 @@
                   <span class="step-actor">inviteQueueService + webPushService</span>
                 </div>
                 <div class="step-desc">
-                  <span class="code-symbol">notifyProviderOnSlotConfirmed() → syncProviderStrikeCount() → dispatchPush() → onBoardChanged()</span>
-                  <span class="step-note">重算提供者違規計數後，由 <code>runInBackground</code> 在回應之後推播通知提供者：「你分享的邀請碼已成功幫助社友 [領取者]」，內文附上領取者的感謝小卡；並呼叫 <code>invalidateBoardCache()</code> 使首頁感謝牆即刻更新。</span>
+                  <span class="code-symbol">notifyProviderOnSlotConfirmed() → syncProviderStrikeCount() → dispatchPush() → onSlotConfirmed()</span>
+                  <span class="step-note">重算提供者違規計數後，由 <code>runInBackground</code> 在回應之後推播通知提供者：「你分享的邀請碼已成功幫助社友 [領取者]」，內文附上領取者的感謝小卡；並呼叫 <code>invalidateBoardAndTotalConfirmedCount()</code>，清掉本 isolate 的看板快取與累計已確認數（<code>totalConfirmedCount</code>）快取。其他 isolate 的看板最多 15 秒後更新，累計已確認數最多 60 秒後更新。</span>
                 </div>
               </div>
             </div>
@@ -1713,7 +1717,7 @@ WAITING (priority = 1 插隊優先重排，軌道不變，僅限 1 次機會)
         <ul style="padding-left: 1.5rem; color: var(--text-muted); font-size: 0.95rem; line-height: 1.8;">
           <li><strong>觸發時機</strong>：<code>processExpirations(now)</code> 有四種觸發時機。一是 <code>wrangler.toml</code> 的 <code>crons = ["*/5 * * * *"]</code>，每 5 分鐘由 <code>scheduled()</code> 執行；二是登入狀態的 <code>GET /api/me</code>；三是 <code>GET /api/board</code> 在看板快取（15 秒）過期時；四是提交連結、加入排隊、取消、解鎖、回報無效這幾支寫入 API 在處理前先結算。確認啟用的 API 不會先結算。</li>
           <li><strong>6 小時保留逾時清理</strong>：尋找 <code>queue_entries.status = 'reserved' AND reserve_expires_at &lt;= now</code>（每次最多 100 筆）。將 queue entry 標為 <code>expired</code>，並將 slot 退回 <code>available</code>（同連結已有 <code>invalidated</code> 名額時改為 <code>closed</code>）；有名額釋出時再呼叫 <code>matchAvailableSlotsToQueue()</code>，依軌道規則重新自動配對給下一位等候者，無人等候則維持 <code>available</code>。</li>
-          <li><strong>30 分鐘自動確認結算</strong>：尋找 <code>queue_entries.status = 'revealed' AND confirm_expires_at &lt;= now</code>（每次最多 100 筆）。自動轉為 <code>confirmed</code>，將感謝小卡更新至感謝牆；重算提供者違規計數與撮合之後，才由 <code>runInBackground</code> 發送推播通知提供者。只有成功把狀態改為 <code>confirmed</code> 的那一次結算會發送推播，不會重複發送。</li>
+          <li><strong>30 分鐘自動確認結算</strong>：尋找 <code>queue_entries.status = 'revealed' AND confirm_expires_at &lt;= now</code>（每次最多 100 筆）。自動轉為 <code>confirmed</code>，將感謝小卡更新至感謝牆；每筆自動確認成功後，立即由 <code>runInBackground</code> 發送推播通知提供者，之後才統一重算受影響提供者的違規計數；撮合只在同一輪有保留逾時釋出名額時才執行。只有成功把狀態改為 <code>confirmed</code> 的那一次結算會發送推播，不會重複發送。</li>
         </ul>
       </div>
 
@@ -1818,7 +1822,7 @@ sequenceDiagram
   Hono->>Hono: Session 中介層解析 JWT + zValidator 檢驗小卡長度 (5~200 字)
   Hono->>QueueSvc: joinQueue(userId, thankYouMessage, track)
   QueueSvc->>QueueSvc: processExpirations(now) 先結算逾時
-  QueueSvc->>Repo: hasConfirmedClaimByUser 與 hasSharedLinksByUser (僅新手首發軌檢查資格)
+  QueueSvc->>Repo: resolveJoinTrack 呼叫 hasConfirmedClaimByUser 與 hasSharedLinksByUser (明確要求 community 時略過資格檢查)
   QueueSvc->>Repo: createQueueEntry(status: 'waiting', priority: 0, track)
   QueueSvc->>Repo: fetchTracksWithWaitingEntries -> fetchAvailableSlotsForMatching
   Note right of Repo: 池中尚無名額 -> 不進撮合引擎，維持 waiting
@@ -1852,7 +1856,7 @@ sequenceDiagram
   QueueSvc->>Repo: confirmRevealedSlot (slot 與 queue entry status = 'confirmed')
   QueueSvc->>PushSvc: sendNotificationToUser(providerId, '你分享的邀請碼已成功幫助社友 小華') 由 runInBackground 在回應後送出
   PushSvc-->>Provider: 💌 Web Push 感謝推播
-  QueueSvc->>QueueSvc: onBoardChanged() 即 invalidateBoardCache()，看板即刻上牆
+  QueueSvc->>QueueSvc: onSlotConfirmed() 即 invalidateBoardAndTotalConfirmedCount()，本 isolate 清掉快取，其他 isolate 最多 15 秒後更新看板
   QueueSvc-->>User: 200 OK { confirmed: true }
           </pre>
         </div>
