@@ -3,6 +3,7 @@ import { InformationCircleIcon, ViewIcon } from '@hugeicons/core-free-icons';
 import {
   CONFIRM_DURATION_MINUTES,
   FALLBACK_PROVIDER_NICKNAME,
+  getRemainingRetryCount,
   MAX_INVALID_RETRY_COUNT,
   RESERVATION_DURATION_HOURS,
   type MeDto,
@@ -67,10 +68,7 @@ export function ReceiverPanel({
   const myQueue = me?.myQueue ?? null;
   const status = myQueue?.status ?? null;
   const confirmedRecord = me?.myConfirmedClaim ?? null;
-  const remainingRetryCount = Math.max(
-    0,
-    MAX_INVALID_RETRY_COUNT - (me?.user?.invalidRetryCount ?? 0),
-  );
+  const remainingRetryCount = getRemainingRetryCount(me?.user?.invalidRetryCount ?? 0);
 
   const actionErrorRef = useScrollIntoViewOnChange<HTMLDivElement>(
     isLoginRequired ? null : actionError

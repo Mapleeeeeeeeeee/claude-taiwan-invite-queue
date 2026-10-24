@@ -15,6 +15,7 @@ import { PullToRefreshIndicator } from './components/PullToRefreshIndicator';
 import { DevDock } from './components/DevDock';
 import { InAppBrowserAlert } from './components/InAppBrowserAlert';
 import { PwaInstallBanner } from './components/PwaInstallBanner';
+import { PwaInstallProvider } from './components/PwaInstallProvider';
 import { ReceiverPanel } from './components/ReceiverPanel';
 import { ThankYouWall } from './components/ThankYouWall';
 import type { ThankYouWallItemDto } from '../shared/types';
@@ -41,18 +42,19 @@ export function App({ hookOptions }: AppProps) {
 
   // 官方按鈕登入後不會接續任何動作，使用者已填的暱稱隨登入一起送出，其餘輸入保留在畫面上。
   const handleGoogleCredential = (credential: string) => {
-    void vm.loginWithGoogle(credential, vm.nicknameInput.trim() || undefined);
+    void vm.loginWithGoogle(credential, vm.providedNickname);
   };
 
   // 本機開發的 GOOGLE_CLIENT_ID 是假值，所以 devLoginEnabled 時不載入 Google 的 script。
-  if (vm.me && !vm.me.devLoginEnabled) {
-    return (
-      <GoogleSignInProvider clientId={vm.me.googleClientId} onCredential={handleGoogleCredential}>
+  const googleClientId = vm.me && !vm.me.devLoginEnabled ? vm.me.googleClientId : null;
+
+  return (
+    <PwaInstallProvider>
+      <GoogleSignInProvider clientId={googleClientId} onCredential={handleGoogleCredential}>
         <AppContent vm={vm} />
       </GoogleSignInProvider>
-    );
-  }
-  return <AppContent vm={vm} />;
+    </PwaInstallProvider>
+  );
 }
 
 function AppContent({ vm }: { vm: UseInviteAppReturn }) {
@@ -77,8 +79,7 @@ function AppContent({ vm }: { vm: UseInviteAppReturn }) {
 
   // 只有本機開發會走到這裡（正式環境改由 Google 官方按鈕登入）。
   async function handleRequireLogin() {
-    const customNickname = vm.nicknameInput.trim() || undefined;
-    await vm.loginWithGoogle(buildDemoGoogleIdToken(customNickname || ''), customNickname);
+    await vm.loginWithGoogle(buildDemoGoogleIdToken(vm.providedNickname ?? ''), vm.providedNickname);
   }
 
   const user = vm.me?.user ?? null;
@@ -150,9 +151,7 @@ function AppContent({ vm }: { vm: UseInviteAppReturn }) {
         <PwaInstallBanner />
 
         <section className="hero-section">
-          <div className="hero-text-block">
-            <h2 className="hero-title">社群邀請碼互助排隊</h2>
-          </div>
+          <h2 className="hero-title">社群邀請碼互助排隊</h2>
 
           <BoardStats
             board={vm.board}

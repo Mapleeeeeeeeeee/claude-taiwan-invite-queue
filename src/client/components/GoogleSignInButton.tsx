@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import { GoogleLogin } from '@react-oauth/google';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useGoogleSignIn } from './GoogleSignInProvider';
 
 export interface GoogleSignInButtonProps {
@@ -7,7 +6,7 @@ export interface GoogleSignInButtonProps {
   text: 'signin' | 'signin_with';
   /** 官方按鈕登入後不會自動接續動作，用這行字告訴使用者登入後要自己再按一次。 */
   hint?: string;
-  /** 沒有 `GoogleSignInProvider`（本機開發）時顯示的自訂登入按鈕。 */
+  /** 沒有可用的 Google 設定（本機開發，或 `/api/me` 還沒回來）時顯示的自訂登入按鈕。 */
   fallback: ReactNode;
 }
 
@@ -16,6 +15,17 @@ export interface GoogleSignInButtonProps {
  */
 export function GoogleSignInButton({ size, text, hint, fallback }: GoogleSignInButtonProps) {
   const googleSignIn = useGoogleSignIn();
+  const id = useId();
+  const [officialButtonSlot, setOfficialButtonSlot] = useState<HTMLDivElement | null>(null);
+  const registerOfficialButton = googleSignIn?.registerOfficialButton;
+
+  useEffect(() => {
+    if (!officialButtonSlot || !registerOfficialButton) {
+      return;
+    }
+    return registerOfficialButton({ id, slot: officialButtonSlot, size, text });
+  }, [id, officialButtonSlot, registerOfficialButton, size, text]);
+
   if (!googleSignIn) {
     return fallback;
   }
@@ -33,18 +43,7 @@ export function GoogleSignInButton({ size, text, hint, fallback }: GoogleSignInB
 
   return (
     <div className="google-signin-slot">
-      <GoogleLogin
-        ux_mode="popup"
-        theme="outline"
-        shape="pill"
-        size={size}
-        text={text}
-        onSuccess={({ credential }) => {
-          if (credential) {
-            googleSignIn.handleCredential(credential);
-          }
-        }}
-      />
+      <div ref={setOfficialButtonSlot} />
       {hint ? <p className="google-signin-hint">{hint}</p> : null}
     </div>
   );

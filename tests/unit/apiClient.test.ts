@@ -65,3 +65,28 @@ describe('apiClient 看板請求的瀏覽器快取', () => {
     expect(init?.cache).toBe(expectedCache);
   });
 });
+
+describe('apiClient 登出請求', () => {
+  function captureLogoutRequestBody(endpoint?: string): Promise<BodyInit | null | undefined> {
+    let capturedBody: BodyInit | null | undefined;
+    const fetchStub: typeof fetch = async (_path, init) => {
+      capturedBody = init?.body;
+      return new Response(JSON.stringify({ data: { loggedOut: true } }), { status: 200 });
+    };
+    return createApiClient(fetchStub)
+      .logout(endpoint)
+      .then(() => capturedBody);
+  }
+
+  it('帶推播端點時，請求本文是只含該端點的 JSON', async () => {
+    const body = await captureLogoutRequestBody('https://push.example.test/sub/abc');
+
+    expect(JSON.parse(body as string)).toEqual({ endpoint: 'https://push.example.test/sub/abc' });
+  });
+
+  it('沒有推播端點時，請求不帶本文', async () => {
+    const body = await captureLogoutRequestBody();
+
+    expect(body).toBeUndefined();
+  });
+});

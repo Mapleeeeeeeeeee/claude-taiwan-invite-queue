@@ -82,7 +82,7 @@ export function ReceiverRevealedCard({
   onCountdownExpire,
 }: ReceiverRevealedCardProps) {
   const { hasCopied: hasCopiedUrl, copyText } = useClipboardCopy();
-  const canClickReportInvalid = Boolean(myQueue.canReportInvalid);
+  const canClickReportInvalid = myQueue.canReportInvalid;
 
   return (
     <div className="queue-state-card state-revealed" data-testid="queue-state-revealed">
@@ -123,7 +123,7 @@ export function ReceiverRevealedCard({
               rel="noopener noreferrer"
               className="btn btn-primary btn-sm btn-icon"
             >
-              <span>前往啟用連結</span>
+              前往啟用連結
             </a>
           ) : null}
         </div>
@@ -165,7 +165,6 @@ export function ReceiverRevealedCard({
           </button>
         )}
       </div>
-
 
       {isReportInvalidConfirmOpen ? (
         <ReportInvalidConfirmDialog

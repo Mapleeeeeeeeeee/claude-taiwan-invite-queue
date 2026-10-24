@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PushToggleButton } from '../../src/client/components/PushToggleButton';
 import { usePushSubscription } from '../../src/client/hooks/usePushSubscription';
 import type { MeDto, PushSubscriptionInput } from '../../src/shared/types';
+import { renderWithPwaInstall as render } from '../helpers/renderWithPwaInstall';
 
 const PENDING_PUSH_STORAGE_KEY = 'claude_invite_pending_push_sub';
 
@@ -190,5 +191,44 @@ describe('PushToggleButton UX & Subscription Binding', () => {
 
     expect(screen.getByText('此瀏覽器不支援推播')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /開啟手機推播通知/ })).toBeNull();
+  });
+  it('通知權限被瀏覽器封鎖時，按鈕維持停用，並直接顯示開啟權限的說明文字', () => {
+    vi.stubGlobal('Notification', { permission: 'denied', requestPermission: vi.fn() });
+
+    render(<PushToggleHarness me={guestMe} onSubscribePush={vi.fn(async () => true)} />);
+
+    expect((screen.getByRole('button', { name: /通知權限已關閉/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByText('你已在瀏覽器設定中封鎖通知，請至網站設定開啟權限，或記得定時回來查看進度')
+    ).not.toBeNull();
+  });
+
+  describe('iPhone Safari 尚未加入主畫面', () => {
+    const IPHONE_USER_AGENT =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1';
+    let originalUserAgent: PropertyDescriptor | undefined;
+
+    beforeEach(() => {
+      originalUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+      Object.defineProperty(navigator, 'userAgent', { value: IPHONE_USER_AGENT, configurable: true });
+    });
+
+    afterEach(() => {
+      if (originalUserAgent) {
+        Object.defineProperty(navigator, 'userAgent', originalUserAgent);
+      } else {
+        delete (navigator as unknown as Record<string, unknown>).userAgent;
+      }
+    });
+
+    // Regression: 推播按鈕自己持有 iOS 引導的開關，但引導視窗只由安裝橫幅渲染，點了沒有任何反應
+    it('點擊「加到主畫面開啟推播」時，開啟 iOS 加入主畫面的引導視窗', () => {
+      render(<PushToggleHarness me={guestMe} onSubscribePush={vi.fn(async () => true)} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /加到主畫面開啟推播/ }));
+
+      const dialog = screen.getByRole('dialog', { name: '如何將網頁加入 iPhone 主畫面' });
+      expect(dialog.hasAttribute('open')).toBe(true);
+    });
   });
 });

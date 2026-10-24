@@ -106,15 +106,15 @@ export function PushToggleButton({ me, isSubmitting, push, onTestPush }: PushTog
 
   if (permissionState === 'denied') {
     return (
-      <button
-        type="button"
-        className="btn-push-morph is-denied"
-        disabled
-        title="瀏覽器通知權限已關閉，請至網站設定開啟"
-      >
-        <HugeiconsIcon icon={AlertCircleIcon} size={14} />
-        <span>通知權限已關閉</span>
-      </button>
+      <>
+        <button type="button" className="btn-push-morph is-denied" disabled>
+          <HugeiconsIcon icon={AlertCircleIcon} size={14} />
+          <span>通知權限已關閉</span>
+        </button>
+        <p className="push-denied-hint">
+          你已在瀏覽器設定中封鎖通知，請至網站設定開啟權限，或記得定時回來查看進度
+        </p>
+      </>
     );
   }
 

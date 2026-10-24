@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ProviderPanel,
   type ProviderPanelProps,
 } from '../../src/client/components/ProviderPanel';
+import type { MeDto, MySharedLinkDto } from '../../src/shared/types';
+import { renderWithPwaInstall as render } from '../helpers/renderWithPwaInstall';
 
 const scrollIntoView = vi.fn();
 
@@ -136,6 +138,107 @@ describe('ProviderPanel 分享失敗時捲到錯誤提示', () => {
       <ProviderPanel {...createPanelProps({ actionError: '請先登入', isLoginRequired: true })} />
     );
 
+    expect(screen.getByRole('region', { name: '登入引導提示' })).not.toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+});
+
+function createProviderMe(overrides?: {
+  mySharedLinks?: MySharedLinkDto[];
+  isProviderBlocked?: boolean;
+}): MeDto {
+  return {
+    user: {
+      id: 20,
+      email: 'provider@claude-tw.dev',
+      nickname: '小張',
+      invalidRetryCount: 0,
+      invalidLinkStrikeCount: 0,
+      isProviderBlocked: overrides?.isProviderBlocked ?? false,
+      hasPushSubscription: false,
+      isEligibleForNewbieTrack: true,
+      hasSharedLinks: (overrides?.mySharedLinks ?? []).length > 0,
+    },
+    myQueue: null,
+    myConfirmedClaim: null,
+    mySharedLinks: overrides?.mySharedLinks ?? [],
+    vapidPublicKey: 'test-vapid-public-key',
+    devLoginEnabled: false,
+    googleClientId: 'test-google-client-id',
+  };
+}
+
+describe('ProviderPanel 我的分享紀錄', () => {
+  it('Given 尚未分享過連結 When 渲染 Then 顯示分享紀錄的空狀態提示', () => {
+    render(<ProviderPanel {...createPanelProps({ me: createProviderMe() })} />);
+
+    expect(screen.getByText(/尚未分享過邀請連結/)).not.toBeNull();
+  });
+
+  it('Given 已分享一組連結 When 渲染 Then 每個名額顯示序號、軌道、狀態，已確認的名額附上領取者與收到的感謝小卡', () => {
+    const sharedLink: MySharedLinkDto = {
+      id: 1,
+      referralCode: 'rNFlbuU0OA',
+      normalizedUrl: 'https://claude.ai/referral/rNFlbuU0OA',
+      totalSlots: 3,
+      createdAt: '2026-10-24T00:00:00.000Z',
+      slots: [
+        {
+          id: 11,
+          status: 'confirmed',
+          track: 'newbie',
+          receiverNickname: '小明',
+          thankYouMessage: '謝謝好心版友分享！',
+          confirmedAt: '2026-10-24T01:00:00.000Z',
+        },
+        {
+          id: 12,
+          status: 'available',
+          track: 'community',
+          receiverNickname: null,
+          thankYouMessage: null,
+          confirmedAt: null,
+        },
+        {
+          id: 13,
+          status: 'invalidated',
+          track: 'newbie',
+          receiverNickname: '阿華',
+          thankYouMessage: null,
+          confirmedAt: null,
+        },
+      ],
+    };
+    render(<ProviderPanel {...createPanelProps({ me: createProviderMe({ mySharedLinks: [sharedLink] }) })} />);
+
+    expect(screen.queryByText(/尚未分享過邀請連結/)).toBeNull();
+    expect(screen.getByText('https://claude.ai/referral/rNFlbuU0OA')).not.toBeNull();
+    expect(screen.getByText('共 3 個名額')).not.toBeNull();
+
+    const [confirmedSlot, availableSlot, invalidatedSlot] = screen
+      .getAllByRole('listitem')
+      .map((item) => within(item));
+    expect(confirmedSlot!.getByText('名額 #1')).not.toBeNull();
+    expect(confirmedSlot!.getByText('新手')).not.toBeNull();
+    expect(confirmedSlot!.getByText('已成功啟用')).not.toBeNull();
+    expect(confirmedSlot!.getByText('小明')).not.toBeNull();
+    expect(confirmedSlot!.getByText('收到感謝小卡：「謝謝好心版友分享！」')).not.toBeNull();
+    expect(availableSlot!.getByText('再領取')).not.toBeNull();
+    expect(availableSlot!.getByText('等待排隊者中')).not.toBeNull();
+    expect(availableSlot!.queryByText(/領取版友/)).toBeNull();
+    expect(availableSlot!.queryByText(/收到感謝小卡/)).toBeNull();
+    expect(invalidatedSlot!.getByText('被回報無效')).not.toBeNull();
+    expect(invalidatedSlot!.queryByText(/收到感謝小卡/)).toBeNull();
+  });
+});
+
+describe('ProviderPanel 被暫停提供權限的提供者', () => {
+  it('Given 提供者因連結多次被回報無效而被暫停 When 渲染 Then 顯示暫停提示並且沒有分享表單', () => {
+    render(<ProviderPanel {...createPanelProps({ me: createProviderMe({ isProviderBlocked: true }) })} />);
+
+    expect(screen.getByText(/目前已暫停提供權限/)).not.toBeNull();
+    expect(screen.queryByLabelText(/Claude 邀請連結/)).toBeNull();
+    expect(screen.queryByRole('button', { name: '送出分享邀請連結' })).toBeNull();
   });
 });

@@ -1,55 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SmartPhone01Icon } from "@hugeicons/core-free-icons";
-import { useModalDialog } from "../hooks/useModalDialog";
 import { usePwaInstall } from "../hooks/usePwaInstall";
-
-function IosInstallGuideDialog({ onClose }: { onClose: () => void }) {
-  const dialogProps = useModalDialog(onClose);
-
-  return (
-    <dialog
-      {...dialogProps}
-      className="modal"
-      aria-labelledby="ios-guide-title"
-    >
-      <div className="modal-card">
-        <h3 id="ios-guide-title" className="modal-title">
-          如何將網頁加入 iPhone 主畫面
-        </h3>
-        <div className="modal-body">
-          <div className="ios-step-item">
-            <span className="ios-step-num">1</span>
-            <div>
-              點擊<strong>「分享」按鈕</strong>（方框向上箭頭）：Safari
-              在畫面底部工具列，Chrome、Edge 在網址列最右側
-            </div>
-          </div>
-          <div className="ios-step-item">
-            <span className="ios-step-num">2</span>
-            <div>
-              在選單中滑動並點選<strong>「加入主畫面」</strong>
-            </div>
-          </div>
-          <div className="ios-step-item">
-            <span className="ios-step-num">3</span>
-            <div>
-              點擊右上角<strong>「新增」</strong>完成安裝，即可接收推播提醒。
-            </div>
-          </div>
-        </div>
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={onClose}
-          >
-            我知道了
-          </button>
-        </div>
-      </div>
-    </dialog>
-  );
-}
 
 export function PwaInstallBanner() {
   const pwa = usePwaInstall();
@@ -59,32 +10,26 @@ export function PwaInstallBanner() {
   }
 
   return (
-    <>
-      <div className="pwa-install-banner" data-testid="pwa-install-banner">
-        <div className="pwa-install-info">
-          <HugeiconsIcon
-            icon={SmartPhone01Icon}
-            size={16}
-            className="pwa-icon"
-          />
-          <div className="pwa-text-wrap">
-            <strong>可加到手機主畫面（PWA）</strong>
-            <p>支援鎖定畫面推播提醒，排到名額不漏接。</p>
-          </div>
+    <div className="pwa-install-banner" data-testid="pwa-install-banner">
+      <div className="pwa-install-info">
+        <HugeiconsIcon
+          icon={SmartPhone01Icon}
+          size={16}
+          className="pwa-icon"
+        />
+        <div className="pwa-text-wrap">
+          <strong>可加到手機主畫面（PWA）</strong>
+          <p>支援鎖定畫面推播提醒，排到名額不漏接。</p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary btn-xs btn-icon"
-          onClick={() => void pwa.installPwa()}
-        >
-          <HugeiconsIcon icon={SmartPhone01Icon} size={13} />
-          <span>{pwa.isIos ? "加入 iPhone" : "加入主畫面"}</span>
-        </button>
       </div>
-
-      {pwa.isIosGuideOpen ? (
-        <IosInstallGuideDialog onClose={pwa.closeIosGuide} />
-      ) : null}
-    </>
+      <button
+        type="button"
+        className="btn btn-primary btn-xs btn-icon"
+        onClick={() => void pwa.installPwa()}
+      >
+        <HugeiconsIcon icon={SmartPhone01Icon} size={13} />
+        <span>{pwa.isIos ? "加入 iPhone" : "加入主畫面"}</span>
+      </button>
+    </div>
   );
 }

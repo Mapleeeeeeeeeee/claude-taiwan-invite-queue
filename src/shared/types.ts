@@ -17,6 +17,11 @@ export const VALID_SLOT_COUNTS = [1, 2, 3] as const;
 export type SlotCount = (typeof VALID_SLOT_COUNTS)[number];
 export const DEFAULT_SLOT_COUNT: SlotCount = 3;
 export const MAX_INVALID_RETRY_COUNT = 1;
+
+/** 帳號還剩幾次無效重排機會；`invalidRetryCount` 是已經用掉的次數。 */
+export function getRemainingRetryCount(invalidRetryCount: number): number {
+  return Math.max(0, MAX_INVALID_RETRY_COUNT - invalidRetryCount);
+}
 export const THANK_YOU_WALL_LIMIT = 30;
 
 // 小時與分鐘數獨立成常數，是為了讓畫面文字與後端通知用同一份數字組字串。

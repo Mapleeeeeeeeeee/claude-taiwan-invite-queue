@@ -724,6 +724,102 @@ describe('useInviteApp 動作成功後的看板重抓', () => {
   });
 });
 
+describe('useInviteApp 登出時這台裝置的推播訂閱', () => {
+  const PUSH_ENDPOINT = 'https://push.example.test/sub/this-device';
+
+  function stubServiceWorker(serviceWorker: unknown) {
+    Object.defineProperty(navigator, 'serviceWorker', { value: serviceWorker, configurable: true });
+  }
+
+  function stubBrowserSubscription(unsubscribe: () => Promise<boolean>) {
+    stubServiceWorker({
+      getRegistration: async () => ({
+        pushManager: { getSubscription: async () => ({ endpoint: PUSH_ENDPOINT, unsubscribe }) },
+      }),
+    });
+  }
+
+  async function renderLoggedInApp(apiClient: InviteApiClient) {
+    const rendered = renderInviteApp(apiClient);
+    await waitFor(() => expect(rendered.result.current.isLoading).toBe(false));
+    return rendered.result;
+  }
+
+  async function logout(result: { current: ReturnType<typeof useInviteApp> }) {
+    await act(async () => {
+      await result.current.logout();
+    });
+  }
+
+  afterEach(() => {
+    delete (navigator as unknown as Record<string, unknown>).serviceWorker;
+  });
+
+  // Regression: 登出後這台裝置的推播訂閱仍綁在已登出的帳號，共用裝置會繼續收到該帳號的通知
+  it('瀏覽器有推播訂閱時，登出請求帶上該端點，登出成功後取消這台裝置的訂閱', async () => {
+    const unsubscribe = vi.fn(async () => true);
+    stubBrowserSubscription(unsubscribe);
+    const apiClient = createMockApiClient();
+    const result = await renderLoggedInApp(apiClient);
+
+    await logout(result);
+
+    expect(apiClient.logout).toHaveBeenCalledWith(PUSH_ENDPOINT);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(result.current.actionSuccessMessage).toBe('已登出帳號');
+  });
+
+  it('登出請求失敗時，保留這台裝置的訂閱，使用者仍是登入狀態', async () => {
+    const unsubscribe = vi.fn(async () => true);
+    stubBrowserSubscription(unsubscribe);
+    const apiClient = createMockApiClient({
+      logout: vi.fn(async () => {
+        throw new ApiClientError('INTERNAL_ERROR', '系統忙碌中，請稍後再試一次', 500);
+      }),
+    });
+    const result = await renderLoggedInApp(apiClient);
+
+    await logout(result);
+
+    expect(unsubscribe).not.toHaveBeenCalled();
+    expect(result.current.actionError).toBe('系統忙碌中，請稍後再試一次');
+  });
+
+  it('取消瀏覽器訂閱被拒絕時，登出仍然成功', async () => {
+    stubBrowserSubscription(async () => {
+      throw new DOMException('push service error', 'AbortError');
+    });
+    const apiClient = createMockApiClient();
+    const result = await renderLoggedInApp(apiClient);
+
+    await logout(result);
+
+    expect(apiClient.logout).toHaveBeenCalledWith(PUSH_ENDPOINT);
+    expect(result.current.actionError).toBeNull();
+    expect(result.current.actionSuccessMessage).toBe('已登出帳號');
+  });
+
+  it.each([
+    { scenario: '瀏覽器沒有 service worker 功能', serviceWorker: undefined },
+    { scenario: '尚未註冊 service worker', serviceWorker: { getRegistration: async () => undefined } },
+    {
+      scenario: '這台裝置沒有推播訂閱',
+      serviceWorker: {
+        getRegistration: async () => ({ pushManager: { getSubscription: async () => null } }),
+      },
+    },
+  ])('$scenario 時，登出請求不帶端點且登出成功', async ({ serviceWorker }) => {
+    stubServiceWorker(serviceWorker);
+    const apiClient = createMockApiClient();
+    const result = await renderLoggedInApp(apiClient);
+
+    await logout(result);
+
+    expect(apiClient.logout).toHaveBeenCalledWith(undefined);
+    expect(result.current.actionSuccessMessage).toBe('已登出帳號');
+  });
+});
+
 describe('useInviteApp 回到前景時的靜默刷新', () => {
   const START_TIME = new Date('2026-10-22T00:00:00.000Z');
   const RESUME_GAP_MS = 5_000;

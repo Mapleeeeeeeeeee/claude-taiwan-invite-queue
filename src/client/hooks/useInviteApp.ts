@@ -3,7 +3,7 @@ import {
   CONFIRM_DURATION_MINUTES,
   DEFAULT_QUEUE_TRACK,
   DEFAULT_SLOT_COUNT,
-  MAX_INVALID_RETRY_COUNT,
+  getRemainingRetryCount,
   RESERVATION_DURATION_HOURS,
   type BoardDto,
   type MeDto,
@@ -23,6 +23,7 @@ import {
   type RequestPushSubscription,
   type UsePushSubscriptionReturn,
 } from './usePushSubscription';
+import { findBrowserPushSubscription, unsubscribeBrowserPush } from '../utils/webPushSubscription';
 import { useRefreshOnResume } from './useRefreshOnResume';
 
 export type ActiveTab = 'receiver' | 'provider';
@@ -46,6 +47,8 @@ export interface UseInviteAppReturn {
   actionSuccessMessage: string | null;
   activeTab: ActiveTab;
   nicknameInput: string;
+  /** 去掉前後空白後的暱稱；全是空白就視為沒填，回傳 `undefined`。送給 API 的暱稱一律用它。 */
+  providedNickname: string | undefined;
   thankYouMessageInput: string;
   rawUrlInput: string;
   slotCountInput: SlotCount;
@@ -111,6 +114,7 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
   const [isReportInvalidConfirmOpen, setIsReportInvalidConfirmOpen] = useState<boolean>(false);
 
   const isEligibleForNewbieTrack = me?.user?.isEligibleForNewbieTrack ?? true;
+  const providedNickname = nicknameInput.trim() || undefined;
   const isLoginRequired = actionErrorCode === 'UNAUTHORIZED';
 
   const clearMessages = useCallback(() => {
@@ -250,7 +254,11 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
 
   const logout = useCallback(async (): Promise<void> => {
     await runAction(async () => {
-      await apiClient.logout();
+      const pushSubscription = await findBrowserPushSubscription();
+      await apiClient.logout(pushSubscription?.endpoint);
+      if (pushSubscription) {
+        await unsubscribeBrowserPush(pushSubscription);
+      }
       setNicknameInput('');
       setProviderTrackInput(DEFAULT_QUEUE_TRACK);
       return '已登出帳號';
@@ -260,17 +268,16 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
   const joinQueue = useCallback(
     (): Promise<boolean> =>
       runAction(async () => {
-        const trimmedNickname = nicknameInput.trim();
         const result = await apiClient.joinQueue({
           thankYouMessage: thankYouMessageInput,
           track: isEligibleForNewbieTrack ? 'newbie' : 'community',
-          nickname: trimmedNickname || undefined,
+          nickname: providedNickname,
         });
         return result.status === 'reserved'
           ? `已為你保留名額，請於 ${RESERVATION_DURATION_HOURS} 小時內解鎖查看邀請連結！`
           : '排隊成功！輪到你時會發送手機推播通知';
       }),
-    [apiClient, isEligibleForNewbieTrack, nicknameInput, runAction, thankYouMessageInput]
+    [apiClient, isEligibleForNewbieTrack, providedNickname, runAction, thankYouMessageInput]
   );
 
   const revealSlot = useCallback(
@@ -303,9 +310,8 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
     (): Promise<boolean> =>
       runAction(
         async () => {
-          const remainingRetryCount = Math.max(
-            MAX_INVALID_RETRY_COUNT - ((me?.user?.invalidRetryCount ?? 0) + 1),
-            0
+          const remainingRetryCount = getRemainingRetryCount(
+            (me?.user?.invalidRetryCount ?? 0) + 1
           );
           const result = await apiClient.reportSlotInvalid();
           setIsReportInvalidConfirmOpen(false);
@@ -348,12 +354,11 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
   const submitInviteLink = useCallback(async (): Promise<boolean> => {
     let shareSuccessMessage = '';
     const isSubmitted = await runAction(async () => {
-      const trimmedNickname = nicknameInput.trim();
       const result = await apiClient.submitInviteLink({
         rawUrlInput,
         slotCount: slotCountInput,
         track: providerTrackInput,
-        nickname: trimmedNickname || undefined,
+        nickname: providedNickname,
       });
       setRawUrlInput('');
       setSlotCountInput(DEFAULT_SLOT_COUNT);
@@ -373,7 +378,7 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
   }, [
     apiClient,
     me,
-    nicknameInput,
+    providedNickname,
     providerTrackInput,
     push,
     rawUrlInput,
@@ -401,6 +406,7 @@ export function useInviteApp(options?: UseInviteAppOptions): UseInviteAppReturn 
     actionSuccessMessage,
     activeTab,
     nicknameInput,
+    providedNickname,
     thankYouMessageInput,
     rawUrlInput,
     slotCountInput,

@@ -32,16 +32,6 @@ describe('BoardStats 即時名額看板', () => {
     expect(trackItemTexts('queue-track-breakdown')).toEqual(['新手 7', '再領取 2']);
   });
 
-  it('新手與再領取是各自獨立的項目，文字讀起來以空格相隔、沒有「·」', () => {
-    render(<BoardStats board={board} isLoading={false} boardError={null} onRefresh={vi.fn()} />);
-
-    const region = screen.getByRole('region', { name: '即時名額看板' });
-
-    expect(screen.getByTestId('slots-track-breakdown').textContent).toBe('新手 3 再領取 2');
-    expect(screen.getByTestId('queue-track-breakdown').textContent).toBe('新手 7 再領取 2');
-    expect(region.textContent).not.toContain('·');
-  });
-
   it('看板尚未載入時，所有數字顯示佔位符而不是 0', () => {
     render(<BoardStats board={null} isLoading={true} boardError={null} onRefresh={vi.fn()} />);
 
@@ -52,26 +42,13 @@ describe('BoardStats 即時名額看板', () => {
     expect(trackItemTexts('queue-track-breakdown')).toEqual(['新手 —', '再領取 —']);
   });
 
-  it('累計已領取那一格只顯示標籤與數字，不附加說明文字', () => {
+  it('看板文字依序讀作標籤、新手與再領取的拆分、數字與單位，拆分之間以空格相隔且沒有「·」', () => {
     render(<BoardStats board={board} isLoading={false} boardError={null} onRefresh={vi.fn()} />);
 
-    const confirmedMetric = screen.getByTestId('total-confirmed-count').closest('.stat-metric');
+    const region = screen.getByRole('region', { name: '即時名額看板' });
 
-    expect(confirmedMetric?.textContent).toBe('累計已領取42次');
-  });
-
-  it.each([
-    ['slots-track-breakdown', 'available-slots-count'],
-    ['queue-track-breakdown', 'waiting-queue-count'],
-  ])('軌道拆分文字（%s）與標籤在同一列，數字（%s）在該列之後', (breakdownTestId, numberTestId) => {
-    render(<BoardStats board={board} isLoading={false} boardError={null} onRefresh={vi.fn()} />);
-
-    const breakdown = screen.getByTestId(breakdownTestId);
-    const metric = breakdown.closest('.stat-metric');
-    const headerRow = metric?.querySelector('.stat-metric-label')?.parentElement;
-    const numberRow = screen.getByTestId(numberTestId).closest('.stat-metric-value-wrap');
-
-    expect(headerRow).toBe(breakdown.parentElement);
-    expect(headerRow?.nextElementSibling).toBe(numberRow);
+    expect(region.textContent).toBe(
+      '可用席次新手 3 再領取 2' + '5席' + '排隊中新手 7 再領取 2' + '9人' + '累計已領取' + '42次'
+    );
   });
 });

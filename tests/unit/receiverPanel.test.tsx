@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MeDto, MyQueueEntryDto } from "../../src/shared/types";
-import {
-  ReceiverPanel,
-  type ReceiverPanelProps,
-} from "../../src/client/components/ReceiverPanel";
+import type { MyQueueEntryDto } from "../../src/shared/types";
+import { ReceiverPanel } from "../../src/client/components/ReceiverPanel";
+import { createLoggedInMe, createPanelProps } from "../helpers/receiverPanelFixtures";
+import { renderWithPwaInstall as render } from "../helpers/renderWithPwaInstall";
 
 // jsdom 沒有實作 scrollIntoView，錯誤提示出現時元件會呼叫它。
 beforeEach(() => {
@@ -16,62 +15,6 @@ afterEach(() => {
   cleanup();
   delete (Element.prototype as Partial<Element>).scrollIntoView;
 });
-
-function createLoggedInMe(overrides?: Partial<MeDto>): MeDto {
-  return {
-    user: {
-      id: 10,
-      email: "alice@claude-tw.dev",
-      nickname: "Alice",
-      invalidRetryCount: 0,
-      invalidLinkStrikeCount: 0,
-      isProviderBlocked: false,
-      hasPushSubscription: false,
-      isEligibleForNewbieTrack: true,
-      hasSharedLinks: false,
-    },
-    myQueue: null,
-    myConfirmedClaim: null,
-    mySharedLinks: [],
-    vapidPublicKey: "test-vapid-public-key",
-    devLoginEnabled: false,
-    googleClientId: "test-google-client-id",
-    ...overrides,
-  };
-}
-
-function createPanelProps(
-  overrides?: Partial<ReceiverPanelProps>,
-): ReceiverPanelProps {
-  return {
-    me: null,
-    isSubmitting: false,
-    actionError: null,
-    isLoginRequired: false,
-    nicknameInput: "阿明",
-    thankYouMessageInput: "合法的感謝小卡內容！",
-    isEligibleForNewbieTrack: true,
-    isReportInvalidConfirmOpen: false,
-    onNicknameChange: vi.fn(),
-    onThankYouMessageChange: vi.fn(),
-    onJoinQueue: vi.fn(async () => true),
-    onRevealSlot: vi.fn(async () => true),
-    onConfirmSlot: vi.fn(async () => true),
-    onOpenReportInvalidConfirm: vi.fn(),
-    onCloseReportInvalidConfirm: vi.fn(),
-    onReportSlotInvalid: vi.fn(async () => true),
-    onCancelQueue: vi.fn(async () => true),
-    onCountdownExpire: vi.fn(),
-    onRequireLogin: vi.fn(),
-    push: {
-      permissionState: "default",
-      hasPendingGuestSubscription: false,
-      enablePush: vi.fn(async () => true),
-    },
-    onTestPush: vi.fn(async () => true),
-    ...overrides,
-  };
-}
 
 describe("ReceiverPanel UX & Validation", () => {
   it("感謝小卡超過 200 字時不截斷輸入，但即時顯示超過字數並停用送出按鈕", () => {

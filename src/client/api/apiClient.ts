@@ -71,7 +71,10 @@ export interface InviteApiClient {
   fetchMe(): Promise<MeDto>;
   loginWithGoogle(payload: GoogleLoginPayload): Promise<LoginResult>;
   loginWithDevAccount(payload: DevLoginPayload): Promise<LoginResult>;
-  logout(): Promise<LogoutResult>;
+  /**
+   * 登出。帶 `endpoint` 時，伺服器會一併刪除該推播端點的訂閱（限登入者自己的），讓這台裝置不再收到該帳號的通知。
+   */
+  logout(endpoint?: string): Promise<LogoutResult>;
   submitInviteLink(payload: SubmitLinkPayload): Promise<SubmitLinkResult>;
   joinQueue(payload: JoinQueuePayload): Promise<JoinQueueResult>;
   revealSlot(): Promise<RevealSlotResult>;
@@ -186,9 +189,10 @@ export function createApiClient(fetchImpl: FetchFunction = fetch): InviteApiClie
         body: JSON.stringify(payload),
       });
     },
-    logout() {
+    logout(endpoint) {
       return requestJson<LogoutResult>('/api/auth/logout', {
         method: 'POST',
+        ...(endpoint ? { body: JSON.stringify({ endpoint }) } : {}),
       });
     },
     submitInviteLink(payload) {

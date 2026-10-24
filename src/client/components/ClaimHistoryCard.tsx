@@ -39,14 +39,12 @@ export function ClaimHistoryCard({ confirmedRecord }: ClaimHistoryCardProps) {
             </span>
           </div>
         </div>
-        <div className="claim-history-summary-right">
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            size={16}
-            className={`claim-history-chevron ${isHistoryExpanded ? 'is-expanded' : ''}`}
-            aria-hidden="true"
-          />
-        </div>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          size={16}
+          className={`claim-history-chevron ${isHistoryExpanded ? 'is-expanded' : ''}`}
+          aria-hidden="true"
+        />
       </button>
 
       {isHistoryExpanded ? (

@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MeDto, MyQueueEntryDto } from '../../src/shared/types';
+import type { MyQueueEntryDto } from '../../src/shared/types';
 import { ReceiverPanel, type ReceiverPanelProps } from '../../src/client/components/ReceiverPanel';
+import {
+  createLoggedInMe,
+  createPanelProps as createBasePanelProps,
+} from '../helpers/receiverPanelFixtures';
+import { renderWithPwaInstall as render } from '../helpers/renderWithPwaInstall';
 
 const scrollIntoView = vi.fn();
 
@@ -16,29 +21,6 @@ afterEach(() => {
   cleanup();
   delete (Element.prototype as Partial<Element>).scrollIntoView;
 });
-
-function createLoggedInMe(overrides?: Partial<MeDto>): MeDto {
-  return {
-    user: {
-      id: 10,
-      email: 'alice@claude-tw.dev',
-      nickname: 'Alice',
-      invalidRetryCount: 0,
-      invalidLinkStrikeCount: 0,
-      isProviderBlocked: false,
-      hasPushSubscription: false,
-      isEligibleForNewbieTrack: true,
-      hasSharedLinks: false,
-    },
-    myQueue: null,
-    myConfirmedClaim: null,
-    mySharedLinks: [],
-    vapidPublicKey: 'test-vapid-public-key',
-    devLoginEnabled: false,
-    googleClientId: 'test-google-client-id',
-    ...overrides,
-  };
-}
 
 const revealedQueue: MyQueueEntryDto = {
   id: 1,
@@ -56,34 +38,7 @@ const revealedQueue: MyQueueEntryDto = {
 };
 
 function createPanelProps(overrides?: Partial<ReceiverPanelProps>): ReceiverPanelProps {
-  return {
-    me: createLoggedInMe({ myQueue: revealedQueue }),
-    isSubmitting: false,
-    actionError: null,
-    isLoginRequired: false,
-    nicknameInput: '阿明',
-    thankYouMessageInput: '合法的感謝小卡內容！',
-    isEligibleForNewbieTrack: true,
-    isReportInvalidConfirmOpen: false,
-    onNicknameChange: vi.fn(),
-    onThankYouMessageChange: vi.fn(),
-    onJoinQueue: vi.fn(async () => true),
-    onRevealSlot: vi.fn(async () => true),
-    onConfirmSlot: vi.fn(async () => true),
-    onOpenReportInvalidConfirm: vi.fn(),
-    onCloseReportInvalidConfirm: vi.fn(),
-    onReportSlotInvalid: vi.fn(async () => true),
-    onCancelQueue: vi.fn(async () => true),
-    onCountdownExpire: vi.fn(),
-    onRequireLogin: vi.fn(),
-    push: {
-      permissionState: 'default',
-      hasPendingGuestSubscription: false,
-      enablePush: vi.fn(async () => true),
-    },
-    onTestPush: vi.fn(async () => true),
-    ...overrides,
-  };
+  return createBasePanelProps({ me: createLoggedInMe({ myQueue: revealedQueue }), ...overrides });
 }
 
 describe('ReceiverPanel 操作失敗時捲到錯誤提示', () => {
@@ -147,6 +102,8 @@ describe('ReceiverPanel 操作失敗時捲到錯誤提示', () => {
       />
     );
 
+    expect(screen.getByRole('region', { name: '登入引導提示' })).not.toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

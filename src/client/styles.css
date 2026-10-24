@@ -240,10 +240,6 @@ body {
   gap: 14px;
 }
 
-.hero-text-block {
-  text-align: left;
-}
-
 .hero-title {
   margin: 0 0 4px;
   font-size: 1.45rem;
@@ -591,6 +587,13 @@ body {
   color: var(--status-danger);
   cursor: not-allowed;
   opacity: 0.75;
+}
+
+.push-denied-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--status-danger);
 }
 
 .push-check-icon {
@@ -987,13 +990,8 @@ body {
   color: var(--text-muted);
 }
 
-.claim-history-summary-right {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
 .claim-history-chevron {
+  flex-shrink: 0;
   color: var(--text-muted);
   transition: transform 0.2s ease, color 0.15s ease;
 }
@@ -1182,9 +1180,6 @@ body {
 }
 
 .shared-link-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 8px;
 }
 

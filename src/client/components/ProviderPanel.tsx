@@ -279,12 +279,10 @@ export function ProviderPanel({
             {mySharedLinks.map((link) => (
               <div key={link.id} className="shared-link-card">
                 <div className="shared-link-header">
-                  <div>
-                    <code className="shared-link-url">{link.normalizedUrl}</code>
-                    <span className="shared-link-meta">
-                      共 {link.totalSlots} 個名額
-                    </span>
-                  </div>
+                  <code className="shared-link-url">{link.normalizedUrl}</code>
+                  <span className="shared-link-meta">
+                    共 {link.totalSlots} 個名額
+                  </span>
                 </div>
 
                 <ul className="slot-status-list">

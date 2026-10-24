@@ -26,7 +26,7 @@ describe('ThankYouWall Component', () => {
     },
   ];
 
-  it('renders empty state when there are no items', () => {
+  it('Given 感謝牆沒有任何小卡 When 渲染 Then 顯示空狀態提示', () => {
     render(
       <ThankYouWall
         items={[]}
@@ -104,6 +104,11 @@ describe('ThankYouWall Component', () => {
     }
     const getTicker = () => screen.getByRole('list', { name: '即時動態感謝牆' });
 
+    // 設計文件沒有規定跑馬燈速度。跑馬燈秒數是 max(22, 張數 × 6.5)（ThankYouWall.tsx 的
+    // MIN_MARQUEE_SECONDS 與 MARQUEE_SECONDS_PER_CARD），2 張時停在下限 22 秒，
+    // 再加 5 張共 7 張就超過下限而放慢。
+    const ITEMS_ADDED_TO_EXCEED_MARQUEE_MIN_DURATION = 5;
+
     // jsdom 不會執行 CSS 動畫，所以用跑馬燈的 DOM 節點有沒有被重建來代表動畫有沒有從起點重來：
     // 瀏覽器只有在元素重建時才會重啟 CSS 動畫。
 
@@ -121,7 +126,7 @@ describe('ThankYouWall Component', () => {
       const { rerenderWith } = renderWall(mockItems);
       const tickerBefore = getTicker();
 
-      const manyMoreItems = Array.from({ length: 5 }, (_, index) => ({
+      const manyMoreItems = Array.from({ length: ITEMS_ADDED_TO_EXCEED_MARQUEE_MIN_DURATION }, (_, index) => ({
         ...mockItems[0]!,
         slotId: 200 + index,
         thankYouMessage: `新加入的感謝小卡 ${index}`,
@@ -132,7 +137,7 @@ describe('ThankYouWall Component', () => {
     });
   });
 
-  it('toggles pause and play button state on click', () => {
+  it('Given 跑馬燈播放中 When 點擊暫停再點繼續 Then 跑馬燈依序暫停與恢復，按鈕名稱隨之切換', () => {
     render(
       <ThankYouWall
         items={mockItems}

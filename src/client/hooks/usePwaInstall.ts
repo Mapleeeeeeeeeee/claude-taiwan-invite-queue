@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { detectStandalonePwa } from '../utils/browserEnvironment';
 
 export interface BeforeInstallPromptEvent extends Event {
@@ -17,10 +17,24 @@ export interface UsePwaInstallResult {
   closeIosGuide: () => void;
 }
 
+export const PwaInstallContext = createContext<UsePwaInstallResult | null>(null);
+
 /**
- * 提供 PWA 加入主畫面（A2HS）的安裝狀態、提示對話框觸發與 iOS Safari 引導操作。
+ * 取得整個頁面共用的 PWA 加入主畫面（A2HS）狀態、安裝動作與 iOS Safari 引導開關。
+ * 必須在 `PwaInstallProvider` 底下呼叫，否則直接丟出錯誤。
  */
 export function usePwaInstall(): UsePwaInstallResult {
+  const installState = useContext(PwaInstallContext);
+  if (!installState) {
+    throw new Error('usePwaInstall 必須在 PwaInstallProvider 底下使用');
+  }
+  return installState;
+}
+
+/**
+ * 監聽瀏覽器的安裝事件並保存安裝狀態；整個頁面只能有一份，由 `PwaInstallProvider` 持有。
+ */
+export function usePwaInstallState(): UsePwaInstallResult {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
   const [isIos, setIsIos] = useState<boolean>(false);

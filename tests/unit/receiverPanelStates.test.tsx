@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MAX_NICKNAME_LENGTH, type MeDto, type MyQueueEntryDto } from '../../src/shared/types';
+import { MAX_NICKNAME_LENGTH, type MyQueueEntryDto } from '../../src/shared/types';
 import { ReceiverPanel, type ReceiverPanelProps } from '../../src/client/components/ReceiverPanel';
+import { createLoggedInMe, createPanelProps } from '../helpers/receiverPanelFixtures';
+import { renderWithPwaInstall as render } from '../helpers/renderWithPwaInstall';
 
 const NOW = new Date('2026-10-22T01:00:00.000Z');
 const REFERRAL_URL = 'https://claude.ai/referral/rNFlbuU0OA';
@@ -18,29 +20,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function createLoggedInMe(overrides?: Partial<MeDto>): MeDto {
-  return {
-    user: {
-      id: 10,
-      email: 'alice@claude-tw.dev',
-      nickname: 'Alice',
-      invalidRetryCount: 0,
-      invalidLinkStrikeCount: 0,
-      isProviderBlocked: false,
-      hasPushSubscription: false,
-      isEligibleForNewbieTrack: true,
-      hasSharedLinks: false,
-    },
-    myQueue: null,
-    myConfirmedClaim: null,
-    mySharedLinks: [],
-    vapidPublicKey: 'test-vapid-public-key',
-    devLoginEnabled: false,
-    googleClientId: 'test-google-client-id',
-    ...overrides,
-  };
-}
-
 function createQueueEntry(overrides: Partial<MyQueueEntryDto>): MyQueueEntryDto {
   return {
     id: 1,
@@ -55,37 +34,6 @@ function createQueueEntry(overrides: Partial<MyQueueEntryDto>): MyQueueEntryDto 
     confirmExpiresAt: null,
     canReportInvalid: true,
     isRequeuedWithPriority: false,
-    ...overrides,
-  };
-}
-
-function createPanelProps(overrides?: Partial<ReceiverPanelProps>): ReceiverPanelProps {
-  return {
-    me: null,
-    isSubmitting: false,
-    actionError: null,
-    isLoginRequired: false,
-    nicknameInput: '阿明',
-    thankYouMessageInput: '合法的感謝小卡內容！',
-    isEligibleForNewbieTrack: true,
-    isReportInvalidConfirmOpen: false,
-    onNicknameChange: vi.fn(),
-    onThankYouMessageChange: vi.fn(),
-    onJoinQueue: vi.fn(async () => true),
-    onRevealSlot: vi.fn(async () => true),
-    onConfirmSlot: vi.fn(async () => true),
-    onOpenReportInvalidConfirm: vi.fn(),
-    onCloseReportInvalidConfirm: vi.fn(),
-    onReportSlotInvalid: vi.fn(async () => true),
-    onCancelQueue: vi.fn(async () => true),
-    onCountdownExpire: vi.fn(),
-    onRequireLogin: vi.fn(),
-    push: {
-      permissionState: 'default',
-      hasPendingGuestSubscription: false,
-      enablePush: vi.fn(async () => true),
-    },
-    onTestPush: vi.fn(async () => true),
     ...overrides,
   };
 }

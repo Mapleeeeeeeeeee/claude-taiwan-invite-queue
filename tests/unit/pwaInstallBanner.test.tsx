@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PwaInstallBanner } from '../../src/client/components/PwaInstallBanner';
+import { renderWithPwaInstall as render } from '../helpers/renderWithPwaInstall';
 
 const IOS_GUIDE_DIALOG_NAME = '如何將網頁加入 iPhone 主畫面';
 const IPHONE_USER_AGENT =
