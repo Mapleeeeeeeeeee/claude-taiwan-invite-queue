@@ -1,10 +1,12 @@
 // 伺服器會對訂閱網址發 POST，所以只收瀏覽器推播服務的主機，不讓使用者指定任意網址。
-// Chrome 與 Android 用 fcm.googleapis.com（Chromium 的 push_messaging_constants.cc；同檔的 jmt17.google.com 是 staging，不收）。
+// Chrome 與 Android 用 fcm.googleapis.com（Chromium 的 push_messaging_constants.cc）。
+// 桌面 Chromium 156 透過正式推播服務訂閱時，實測拿到 jmt17.google.com 的網址，用 VAPID 對它發送也成功送達，所以也收這個主機。
 // Firefox 用 updates.push.services.mozilla.com（Mozilla autopush 文件）。
 // Safari 與 iOS 用 web.push.apple.com，Apple 文件要求放行 *.push.apple.com。
 // Edge 用 *.notify.windows.com，Microsoft WNS 文件規定通道網址的網域是 notify.windows.com。
 const PUSH_SERVICE_HOSTNAMES: readonly string[] = [
   'fcm.googleapis.com',
+  'jmt17.google.com',
   'updates.push.services.mozilla.com',
 ];
 const PUSH_SERVICE_HOSTNAME_SUFFIXES: readonly string[] = [

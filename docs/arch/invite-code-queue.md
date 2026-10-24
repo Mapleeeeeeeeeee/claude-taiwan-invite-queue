@@ -38,7 +38,7 @@
 | `src/worker/repositories/userRepository.ts` | `users` 資料表的讀寫：依 id 查詢、以 Google 帳號建立或更新、更新暱稱、更新提供者的違規計數（`invalidLinkStrikeCount`） |
 | `src/worker/repositories/pushSubscriptionRepository.ts` | `push_subscriptions` 資料表的讀寫：依 `endpoint` 寫入或更新、依使用者查詢、依 `endpoint` 刪除、只刪屬於指定使用者的訂閱、只保留使用者最近訂閱的 N 筆 |
 | `src/worker/services/webPushService.ts` | VAPID Web Push 訂閱管理（儲存、依使用者移除，每位使用者最多保留 `MAX_PUSH_SUBSCRIPTIONS_PER_USER` 筆）、通知發送與失效憑證清理 |
-| `src/worker/domain/pushEndpoint.ts` | `isKnownPushServiceEndpoint` 判斷訂閱網址是否為不帶連接埠與帳密的 https 網址，且主機是 `fcm.googleapis.com`、`updates.push.services.mozilla.com`、`*.push.apple.com` 或 `*.notify.windows.com` |
+| `src/worker/domain/pushEndpoint.ts` | `isKnownPushServiceEndpoint` 判斷訂閱網址是否為不帶連接埠與帳密的 https 網址，且主機是 `fcm.googleapis.com`、`jmt17.google.com`、`updates.push.services.mozilla.com`、`*.push.apple.com` 或 `*.notify.windows.com` |
 | `src/worker/services/authService.ts` | Google 登入流程（交給 verifier 驗證 ID Token）、Session Cookie 簽發與解析 |
 | `src/worker/services/googleTokenVerifier.ts` | 用 `jose` 驗證 Google ID Token（簽章、`aud`、`iss`、`exp`、`email_verified`）；token 無效丟 401 `INVALID_GOOGLE_TOKEN`，JWKS 抓取失敗向上傳播成 500；測試用 `createGoogleTokenVerifier(fetchJwks)` 產生注入假 JWKS fetch 的 verifier，再經 `createApp({ googleTokenVerifier })` 注入；要整個換掉登入流程時，直接注入假的 verifier |
 | `src/worker/services/inviteQueueService.ts` | 核心業務流程（提交連結、加入排隊、FIFO 配對、解鎖看碼、確認啟用、回報無效、逾時處理） |

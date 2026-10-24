@@ -60,6 +60,11 @@ describe('推播訂閱', () => {
       { name: 'Chrome 的 FCM Web Push 路徑', endpoint: 'https://fcm.googleapis.com/wp/abc123' },
       { name: 'Firefox', endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/abc123' },
       {
+        name: '桌面 Chromium 的 jmt17.google.com',
+        endpoint:
+          'https://jmt17.google.com/fcm/send/fX9kLmN2oPq:APA91bHrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUvWx',
+      },
+      {
         name: 'Edge 的 WNS 子網域',
         endpoint: 'https://wns2-par02p.notify.windows.com/w/?token=abc',
       },
@@ -78,6 +83,18 @@ describe('推播訂閱', () => {
       {
         name: '主機名稱以推播服務開頭的偽造網域',
         endpoint: 'https://fcm.googleapis.com.evil.example/fcm/send/x',
+      },
+      {
+        name: '主機名稱以 jmt17.google.com 開頭的偽造網域',
+        endpoint: 'https://jmt17.google.com.evil.example/fcm/send/x',
+      },
+      {
+        name: '主機名稱含 jmt17.google.com 但不是它的偽造網域',
+        endpoint: 'https://evil-jmt17.google.com.example/fcm/send/x',
+      },
+      {
+        name: '以 jmt17.google.com 結尾的其他子網域',
+        endpoint: 'https://evil.jmt17.google.com/fcm/send/x',
       },
       { name: '推播服務出現在路徑裡', endpoint: 'https://evil.example/fcm.googleapis.com' },
       {
