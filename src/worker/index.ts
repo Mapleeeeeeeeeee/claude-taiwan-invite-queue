@@ -231,7 +231,16 @@ export function createApp(options?: CreateAppOptions) {
     const userId = c.get('userId');
     const body = logoutSchema.safeParse(await readJsonBodyOrNull(c));
     if (userId !== null && body.success) {
-      await c.get('services').pushService.removeSubscription(userId, body.data.endpoint);
+      // 清訂閱只是順手的善後，D1 暫時出錯時使用者仍要登出得了（共用裝置上不能留著登入狀態）。
+      // 交給 waitUntil 後，失敗不影響這個回應，Workers 會把拒絕的 promise 記進 log；
+      // 沒有 ExecutionContext（Workers 之外）時才就地 await，讓失敗不被吞掉。
+      const cleanup = c.get('services').pushService.removeSubscription(userId, body.data.endpoint);
+      const runInBackground = getRunInBackground(c);
+      if (runInBackground) {
+        runInBackground(cleanup);
+      } else {
+        await cleanup;
+      }
     }
     deleteCookie(c, SESSION_COOKIE_NAME, { path: '/' });
     return c.json({ data: { loggedOut: true } }, 200);

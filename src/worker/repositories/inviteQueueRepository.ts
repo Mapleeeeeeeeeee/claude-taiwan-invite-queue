@@ -52,6 +52,14 @@ export interface SlotConfirmationPushContext {
   thankYouMessage: string;
 }
 
+/** 排隊紀錄在 `status` 狀態下持有 `slotId`；取消與解鎖還要確認紀錄屬於 `userId`。 */
+interface QueueEntrySlotHold {
+  queueEntryId: number;
+  slotId: number;
+  status: QueueStatus;
+  userId?: number;
+}
+
 interface ExpiredReservationRow {
   queueEntryId: number;
   slotId: number;
@@ -431,19 +439,12 @@ export class InviteQueueRepository {
     userId: number;
     nowIso: string;
   }): Promise<boolean> {
-    const entryStillHoldsSlot = exists(
-      this.db
-        .select({ id: queueEntries.id })
-        .from(queueEntries)
-        .where(
-          and(
-            eq(queueEntries.id, params.queueEntryId),
-            eq(queueEntries.status, 'reserved'),
-            eq(queueEntries.userId, params.userId),
-            eq(queueEntries.slotId, params.slotId)
-          )
-        )
-    );
+    const reservedHold: QueueEntrySlotHold = {
+      queueEntryId: params.queueEntryId,
+      slotId: params.slotId,
+      status: 'reserved',
+      userId: params.userId,
+    };
     // 第一條語句沒有放掉名額時，名額仍是 reserved，第二條語句就不能取消紀錄。
     const slotWasReleased = exists(
       this.db
@@ -456,7 +457,10 @@ export class InviteQueueRepository {
       this.releaseReservedSlot(
         params.slotId,
         params.nowIso,
-        and(eq(inviteSlots.assignedUserId, params.userId), entryStillHoldsSlot)
+        and(
+          eq(inviteSlots.assignedUserId, params.userId),
+          this.existsQueueEntryHoldingSlot(reservedHold)
+        )
       ),
       this.db
         .update(queueEntries)
@@ -466,15 +470,7 @@ export class InviteQueueRepository {
           reserveExpiresAt: null,
           updatedAt: params.nowIso,
         })
-        .where(
-          and(
-            eq(queueEntries.id, params.queueEntryId),
-            eq(queueEntries.status, 'reserved'),
-            eq(queueEntries.userId, params.userId),
-            eq(queueEntries.slotId, params.slotId),
-            slotWasReleased
-          )
-        ),
+        .where(and(this.queueEntryHoldsSlot(reservedHold), slotWasReleased)),
     ]);
 
     return allAffectedExactlyOne(results);
@@ -515,20 +511,13 @@ export class InviteQueueRepository {
     nowIso: string;
     confirmExpiresAtIso: string;
   }): Promise<boolean> {
-    const entryStillHoldsSlot = exists(
-      this.db
-        .select({ id: queueEntries.id })
-        .from(queueEntries)
-        .where(
-          and(
-            eq(queueEntries.id, params.queueEntryId),
-            eq(queueEntries.status, 'reserved'),
-            eq(queueEntries.userId, params.userId),
-            eq(queueEntries.slotId, params.slotId),
-            gt(queueEntries.reserveExpiresAt, params.nowIso)
-          )
-        )
-    );
+    const reservedHold: QueueEntrySlotHold = {
+      queueEntryId: params.queueEntryId,
+      slotId: params.slotId,
+      status: 'reserved',
+      userId: params.userId,
+    };
+    const reservationNotExpired = gt(queueEntries.reserveExpiresAt, params.nowIso);
     const slotWasRevealedByThisRequest = exists(
       this.db
         .select({ id: inviteSlots.id })
@@ -557,7 +546,7 @@ export class InviteQueueRepository {
             eq(inviteSlots.status, 'reserved'),
             eq(inviteSlots.assignedUserId, params.userId),
             gt(inviteSlots.reserveExpiresAt, params.nowIso),
-            entryStillHoldsSlot
+            this.existsQueueEntryHoldingSlot(reservedHold, reservationNotExpired)
           )
         ),
       this.db
@@ -569,11 +558,7 @@ export class InviteQueueRepository {
         })
         .where(
           and(
-            eq(queueEntries.id, params.queueEntryId),
-            eq(queueEntries.status, 'reserved'),
-            eq(queueEntries.userId, params.userId),
-            eq(queueEntries.slotId, params.slotId),
-            gt(queueEntries.reserveExpiresAt, params.nowIso),
+            this.queueEntryHoldsSlot(reservedHold, reservationNotExpired),
             slotWasRevealedByThisRequest
           )
         ),
@@ -591,18 +576,11 @@ export class InviteQueueRepository {
     queueEntryId: number;
     nowIso: string;
   }): Promise<boolean> {
-    const entryStillHoldsSlot = exists(
-      this.db
-        .select({ id: queueEntries.id })
-        .from(queueEntries)
-        .where(
-          and(
-            eq(queueEntries.id, params.queueEntryId),
-            eq(queueEntries.status, 'revealed'),
-            eq(queueEntries.slotId, params.slotId)
-          )
-        )
-    );
+    const revealedHold: QueueEntrySlotHold = {
+      queueEntryId: params.queueEntryId,
+      slotId: params.slotId,
+      status: 'revealed',
+    };
     const slotWasConfirmedByThisRequest = exists(
       this.db
         .select({ id: inviteSlots.id })
@@ -624,20 +602,13 @@ export class InviteQueueRepository {
           and(
             eq(inviteSlots.id, params.slotId),
             eq(inviteSlots.status, 'revealed'),
-            entryStillHoldsSlot
+            this.existsQueueEntryHoldingSlot(revealedHold)
           )
         ),
       this.db
         .update(queueEntries)
         .set({ status: 'confirmed', confirmedAt: params.nowIso, updatedAt: params.nowIso })
-        .where(
-          and(
-            eq(queueEntries.id, params.queueEntryId),
-            eq(queueEntries.status, 'revealed'),
-            eq(queueEntries.slotId, params.slotId),
-            slotWasConfirmedByThisRequest
-          )
-        ),
+        .where(and(this.queueEntryHoldsSlot(revealedHold), slotWasConfirmedByThisRequest)),
     ]);
 
     return allAffectedExactlyOne(results);
@@ -830,6 +801,30 @@ export class InviteQueueRepository {
       .where(and(eq(queueEntries.status, 'revealed'), lte(queueEntries.confirmExpiresAt, nowIso)))
       .orderBy(asc(queueEntries.confirmExpiresAt), asc(queueEntries.id))
       .limit(EXPIRATION_SCAN_LIMIT);
+  }
+
+  /**
+   * 「這筆排隊紀錄仍以 `hold.status` 持有 `hold.slotId`」的條件，寫在 `queue_entries` 的欄位上。
+   * 取消、解鎖、確認三條路徑的紀錄語句都靠它把紀錄綁在名額上；`extraGuard` 讓呼叫端再加條件（例如保留未逾時）。
+   */
+  private queueEntryHoldsSlot(hold: QueueEntrySlotHold, extraGuard?: SQL) {
+    return and(
+      eq(queueEntries.id, hold.queueEntryId),
+      eq(queueEntries.status, hold.status),
+      hold.userId === undefined ? undefined : eq(queueEntries.userId, hold.userId),
+      eq(queueEntries.slotId, hold.slotId),
+      extraGuard
+    );
+  }
+
+  /** 同一個條件包成 `EXISTS`，給名額語句確認排隊紀錄仍持有它；參數同 `queueEntryHoldsSlot`。 */
+  private existsQueueEntryHoldingSlot(hold: QueueEntrySlotHold, extraGuard?: SQL) {
+    return exists(
+      this.db
+        .select({ id: queueEntries.id })
+        .from(queueEntries)
+        .where(this.queueEntryHoldsSlot(hold, extraGuard))
+    );
   }
 
   /**

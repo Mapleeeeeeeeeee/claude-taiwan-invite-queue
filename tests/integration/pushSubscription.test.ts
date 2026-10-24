@@ -10,7 +10,7 @@ import {
   WebPushService,
 } from '../../src/worker/services/webPushService';
 import { type AppInstance, type TestActor, loginActor } from '../helpers/testActor';
-import { createTestD1Database } from '../helpers/testD1';
+import { type StatementFailureInjector, createTestD1Database } from '../helpers/testD1';
 import { createTestPushSubscriber } from '../helpers/webPushTestKeys';
 
 // 形狀取自正式環境目前實際出現的訂閱網址（token 為虛構）。
@@ -22,6 +22,7 @@ const IPHONE_SAFARI_ENDPOINT =
 describe('推播訂閱', () => {
   let env: Env;
   let sqlite: Database.Database;
+  let failureInjector: StatementFailureInjector;
   let app: AppInstance;
   let currentNow: Date;
 
@@ -29,6 +30,7 @@ describe('推播訂閱', () => {
     invalidateBoardCache();
     const setup = createTestD1Database();
     sqlite = setup.sqlite;
+    failureInjector = setup.failureInjector;
     env = {
       DB: setup.db,
       ENVIRONMENT: 'development',
@@ -149,7 +151,11 @@ describe('推播訂閱', () => {
   describe('登出時移除這台裝置的推播訂閱', () => {
     const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
-    async function postLogout(cookie: string | undefined, body?: BodyInit): Promise<Response> {
+    async function postLogout(
+      cookie: string | undefined,
+      body?: BodyInit,
+      executionCtx?: ExecutionContext
+    ): Promise<Response> {
       return app.request(
         '/api/auth/logout',
         {
@@ -157,7 +163,8 @@ describe('推播訂閱', () => {
           headers: cookie ? { ...JSON_HEADERS, Cookie: cookie } : JSON_HEADERS,
           body,
         },
-        env
+        env,
+        executionCtx
       );
     }
 
@@ -218,6 +225,58 @@ describe('推播訂閱', () => {
       expect(readEndpointsOf(user.userId)).toEqual([ANDROID_CHROME_ENDPOINT]);
     });
 
+    it.each([
+      { name: '自己的 endpoint', ownsEndpoint: true, expectedLogged: true },
+      { name: '別人的 endpoint', ownsEndpoint: false, expectedLogged: false },
+    ])(
+      '帶 $name 登出時，只有真的刪掉訂閱才記 push.subscription_removed_by_user',
+      async (scenario) => {
+        const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+          const user = await loginActor(app, env, 'logoutLog@example.com', '登出者');
+          const other = await loginActor(app, env, 'logoutLogOther@example.com', '別人');
+          await (scenario.ownsEndpoint ? user : other).subscribePush(ANDROID_CHROME_ENDPOINT);
+          infoSpy.mockClear();
+
+          await postLogout(user.cookie, JSON.stringify({ endpoint: ANDROID_CHROME_ENDPOINT }));
+
+          const loggedEvents = infoSpy.mock.calls.map(([line]) => JSON.parse(line as string).event);
+          expect(loggedEvents.includes('push.subscription_removed_by_user')).toBe(
+            scenario.expectedLogged
+          );
+        } finally {
+          infoSpy.mockRestore();
+        }
+      }
+    );
+
+    // Regression: 登出時移除訂閱的 D1 刪除失敗，回應變 500 且 session cookie 沒被清掉，使用者登不出去
+    it('移除訂閱的 D1 刪除失敗時，仍回 200 並清除 cookie，失敗交給 waitUntil 留在 log', async () => {
+      const user = await loginActor(app, env, 'logoutD1Down@example.com', '登出者');
+      await user.subscribePush(ANDROID_CHROME_ENDPOINT);
+      const backgroundFailures: unknown[] = [];
+      const executionCtx = {
+        waitUntil: (task: Promise<unknown>) => {
+          void task.catch((error: unknown) => backgroundFailures.push(error));
+        },
+        passThroughOnException() {},
+      } as unknown as ExecutionContext;
+      failureInjector.failNextWrite({ operation: 'DELETE', table: 'push_subscriptions' });
+
+      const res = await postLogout(
+        user.cookie,
+        JSON.stringify({ endpoint: ANDROID_CHROME_ENDPOINT }),
+        executionCtx
+      );
+      await vi.waitFor(() => expect(backgroundFailures).toHaveLength(1));
+
+      expectLoggedOut(res);
+      expect(await res.json()).toEqual({ data: { loggedOut: true } });
+      expect((backgroundFailures[0] as Error).cause).toMatchObject({
+        message: expect.stringContaining('injected D1 failure'),
+      });
+    });
+
     it('沒登入時帶 endpoint 登出，回 200 且不刪任何訂閱', async () => {
       const owner = await loginActor(app, env, 'logoutOwner@example.com', '訂閱者');
       await owner.subscribePush(ANDROID_CHROME_ENDPOINT);
@@ -258,10 +317,23 @@ describe('推播訂閱', () => {
       vi.unstubAllGlobals();
     });
 
+    // 長度與 0x04 前綴都對，但 (x, y) 不在 P-256 曲線上。
+    const OFF_CURVE_P256_POINT = Buffer.concat([
+      Buffer.from([UNCOMPRESSED_P256_POINT_PREFIX]),
+      Buffer.alloc(64, 0x01),
+    ]);
+    const WELL_FORMED_AUTH_SECRET = Buffer.alloc(16, 0x02);
+
     // Regression: 訂閱金鑰長度不合規時，伺服器略過加密，把明文 JSON 直接 POST 給推播服務
+    // Regression: 公鑰不在 P-256 曲線上時，加密丟 DOMException 被當成暫時失敗，這筆訂閱永遠不被移除
     it.each([
       { name: '公鑰與驗證密鑰長度都不對', p256dh: 'AAAA', auth: 'AAAA' },
       { name: '不是 base64url 字元', p256dh: '!!!!', auth: '!!!!' },
+      {
+        name: '公鑰長度與前綴都對但不在 P-256 曲線上',
+        p256dh: OFF_CURVE_P256_POINT.toString('base64url'),
+        auth: WELL_FORMED_AUTH_SECRET.toString('base64url'),
+      },
     ])('$name 時，不對推播服務送出任何請求，並移除這筆訂閱', async ({ p256dh, auth }) => {
       const fetchSpy = vi.fn(async (_endpoint: string) => new Response(null, { status: 201 }));
       vi.stubGlobal('fetch', fetchSpy);

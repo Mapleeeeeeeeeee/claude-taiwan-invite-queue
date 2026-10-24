@@ -94,16 +94,9 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
 async function encryptWebPushPayloadAes128Gcm(
   plaintextBytes: Uint8Array,
   clientPublicKeyBytes: Uint8Array<ArrayBuffer>,
+  clientPublicKey: CryptoKey,
   authSecretBytes: Uint8Array<ArrayBuffer>
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const clientPublicKey = await crypto.subtle.importKey(
-    'raw',
-    clientPublicKeyBytes,
-    { name: 'ECDH', namedCurve: 'P-256' },
-    false,
-    []
-  );
-
   const serverKeyPair = (await crypto.subtle.generateKey(
     { name: 'ECDH', namedCurve: 'P-256' },
     true,
@@ -324,11 +317,12 @@ function isExpectedPushFailure(
   );
 }
 
-/** 解出訂閱的接收端公鑰與驗證密鑰；格式或長度不符 Web Push 規格時丟 `MalformedPushSubscriptionError`。 */
-function decodeWebPushKeys(subscription: StoredPushSubscriptionRow): {
+/** 解出訂閱的接收端公鑰與驗證密鑰；格式、長度不符 Web Push 規格或公鑰不在 P-256 曲線上時丟 `MalformedPushSubscriptionError`。 */
+async function decodeWebPushKeys(subscription: StoredPushSubscriptionRow): Promise<{
   clientPublicKeyBytes: Uint8Array<ArrayBuffer>;
+  clientPublicKey: CryptoKey;
   authSecretBytes: Uint8Array<ArrayBuffer>;
-} {
+}> {
   let clientPublicKeyBytes: Uint8Array<ArrayBuffer>;
   let authSecretBytes: Uint8Array<ArrayBuffer>;
   try {
@@ -349,13 +343,30 @@ function decodeWebPushKeys(subscription: StoredPushSubscriptionRow): {
   if (!hasValidWebPushKeys) {
     throw new MalformedPushSubscriptionError('推播訂閱的金鑰長度不符 Web Push 規格');
   }
-  return { clientPublicKeyBytes, authSecretBytes };
+
+  try {
+    const clientPublicKey = await crypto.subtle.importKey(
+      'raw',
+      clientPublicKeyBytes,
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,
+      []
+    );
+    return { clientPublicKeyBytes, clientPublicKey, authSecretBytes };
+  } catch (error) {
+    // 長度與前綴都對、但點不在曲線上時，importKey 以 DataError 拒絕。
+    if (error instanceof DOMException && error.name === 'DataError') {
+      throw new MalformedPushSubscriptionError('推播訂閱的公鑰不在 P-256 曲線上');
+    }
+    throw error;
+  }
 }
 
 function createVapidHttpPushSender(vapidConfig: VapidConfig): PushSender {
   return async (subscription, payload): Promise<PushSendResult> => {
     // 金鑰不合規就不送：沒有加密的內容不能交給推播服務。
-    const { clientPublicKeyBytes, authSecretBytes } = decodeWebPushKeys(subscription);
+    const { clientPublicKeyBytes, clientPublicKey, authSecretBytes } =
+      await decodeWebPushKeys(subscription);
     const endpointUrl = new URL(subscription.endpoint);
     const audienceOrigin = `${endpointUrl.protocol}//${endpointUrl.host}`;
     const nowSeconds = Math.floor(Date.now() / 1000);
@@ -365,6 +376,7 @@ function createVapidHttpPushSender(vapidConfig: VapidConfig): PushSender {
       const encryptedBody = await encryptWebPushPayloadAes128Gcm(
         new TextEncoder().encode(JSON.stringify(payload)),
         clientPublicKeyBytes,
+        clientPublicKey,
         authSecretBytes
       );
 
@@ -431,7 +443,11 @@ export class WebPushService {
 
   /** 移除 `userId` 名下 `endpoint` 的訂閱；`endpoint` 不存在或屬於別人時不做任何事。 */
   async removeSubscription(userId: number, endpoint: string): Promise<void> {
-    await this.repo.deletePushSubscriptionOfUser(userId, endpoint);
+    const wasRemoved = await this.repo.deletePushSubscriptionOfUser(userId, endpoint);
+    if (!wasRemoved) {
+      logInfo('push.subscription_removal_ignored', { userId });
+      return;
+    }
     logInfo('push.subscription_removed_by_user', { userId });
   }
 

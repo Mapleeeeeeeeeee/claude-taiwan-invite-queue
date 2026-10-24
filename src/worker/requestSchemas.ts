@@ -90,7 +90,7 @@ export const pushSubscribeSchema = z.object({
   }),
 });
 
-/** 登出時可選的 body：帶上這台裝置的推播訂閱網址，伺服器順便移除它。 */
+/** 登出時可以帶這台裝置的推播訂閱網址，伺服器會順便移除那筆訂閱。 */
 export const logoutSchema = z.object({
   endpoint: z.string().max(MAX_PUSH_ENDPOINT_LENGTH),
 });

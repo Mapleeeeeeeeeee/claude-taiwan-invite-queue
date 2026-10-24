@@ -1,3 +1,4 @@
+import { onTestFinished } from "vitest";
 import type { InjectedWrite } from "./testD1";
 
 const WRITE_PREFIX_PATTERNS: Record<
@@ -17,6 +18,7 @@ export interface RacingD1 {
    * 登記一次競態：被測 service 下一次送出符合 `write`（操作與資料表）的寫入之前，先執行 `competingRequest`。
    * 因此 service 先前讀到的資料在它寫入的當下已經過期，寫入條件（guard）必須自己擋下。
    * 只攔截一次；攔截時 `competingRequest` 會先解除登記，所以它自己的寫入不會再觸發。
+   * 測試結束時若這次競態從未觸發（寫入條件對不上），該測試會失敗，避免它默默變成沒有競態的測試。
    */
   raceBeforeNextWrite(
     write: InjectedWrite,
@@ -111,6 +113,13 @@ export function createRacingD1(db: D1Database): RacingD1 {
     db: racingDb,
     raceBeforeNextWrite(write, competingRequest) {
       pending = { write, competingRequest };
+      onTestFinished(() => {
+        if (pending !== null) {
+          throw new Error(
+            `raceBeforeNextWrite 登記的競態從未觸發：沒有送出符合 ${pending.write.operation} ${pending.write.table} 的寫入`,
+          );
+        }
+      });
     },
   };
 }

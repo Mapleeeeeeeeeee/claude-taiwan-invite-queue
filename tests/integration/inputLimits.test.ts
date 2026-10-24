@@ -13,6 +13,11 @@ import { createTestD1Database } from '../helpers/testD1';
 const REFERRAL_URL_PREFIX = 'https://claude.ai/referral/';
 const PUSH_ENDPOINT_PREFIX = 'https://fcm.googleapis.com/fcm/send/';
 
+/** 網址與主機都合法、只有總長度不同的推播 endpoint，讓長度是唯一影響結果的條件。 */
+function pushEndpointOfLength(totalLength: number): string {
+  return PUSH_ENDPOINT_PREFIX.padEnd(totalLength, 'd');
+}
+
 describe('邀請連結與推播訂閱的輸入長度上限', () => {
   let env: Env;
   let app: AppInstance;
@@ -93,7 +98,7 @@ describe('邀請連結與推播訂閱的輸入長度上限', () => {
       const subscriber = await loginActor(app, env, 'toolong-push@example.com', '長輸入訂閱者');
 
       const res = await subscriber.subscribePush(
-        `${PUSH_ENDPOINT_PREFIX}${'d'.repeat(MAX_PUSH_ENDPOINT_LENGTH)}`
+        pushEndpointOfLength(MAX_PUSH_ENDPOINT_LENGTH + 1)
       );
 
       expect(res.status).toBe(422);
@@ -114,9 +119,8 @@ describe('邀請連結與推播訂閱的輸入長度上限', () => {
 
     it('endpoint 剛好等於上限時回 200 並寫入訂閱', async () => {
       const subscriber = await loginActor(app, env, 'maxlen-push@example.com', '上限訂閱者');
-      const endpoint = PUSH_ENDPOINT_PREFIX.padEnd(MAX_PUSH_ENDPOINT_LENGTH, 'd');
 
-      const res = await subscriber.subscribePush(endpoint);
+      const res = await subscriber.subscribePush(pushEndpointOfLength(MAX_PUSH_ENDPOINT_LENGTH));
 
       expect(res.status).toBe(200);
       expect(await countRows('push_subscriptions')).toBe(1);

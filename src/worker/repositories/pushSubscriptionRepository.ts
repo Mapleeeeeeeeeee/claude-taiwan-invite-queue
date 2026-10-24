@@ -68,12 +68,13 @@ export class PushSubscriptionRepository {
       .run();
   }
 
-  /** 刪除 `endpoint` 的訂閱，但只限它屬於 `userId` 時；不屬於或不存在時不做任何事。 */
-  async deletePushSubscriptionOfUser(userId: number, endpoint: string): Promise<void> {
-    await this.db
+  /** 刪除 `endpoint` 的訂閱，但只限它屬於 `userId` 時；回傳是否真的刪了一筆（不屬於或不存在時為 `false`）。 */
+  async deletePushSubscriptionOfUser(userId: number, endpoint: string): Promise<boolean> {
+    const result = await this.db
       .delete(pushSubscriptions)
       .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)))
       .run();
+    return result.meta.changes > 0;
   }
 
   async deletePushSubscriptionByEndpoint(endpoint: string): Promise<void> {
