@@ -662,7 +662,7 @@ export class InviteQueueService {
 
   private async notifyProviderOfConfirmation(context: SlotConfirmationPushContext): Promise<void> {
     await this.dispatchPush(context.providerUserId, {
-      title: `你分享的邀請碼已成功幫助社友 ${context.receiverNickname}`,
+      title: `你分享的邀請碼已成功幫助版友 ${context.receiverNickname}`,
       body: `對方留言：「${context.thankYouMessage}」`,
       url: '/',
       tag: `slot-confirmed-${context.slotId}`,

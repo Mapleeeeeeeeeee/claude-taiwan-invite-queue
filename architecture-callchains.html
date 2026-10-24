@@ -1396,7 +1396,7 @@
                 </div>
                 <div class="step-desc">
                   <span class="code-symbol">notifyProviderOnSlotConfirmed() → syncProviderStrikeCount() → dispatchPush() → onSlotConfirmed()</span>
-                  <span class="step-note">重算提供者違規計數後，由 <code>runInBackground</code> 在回應之後推播通知提供者：「你分享的邀請碼已成功幫助社友 [領取者]」，內文附上領取者的感謝小卡；並呼叫 <code>invalidateBoardAndTotalConfirmedCount()</code>，清掉本 isolate 的看板快取與累計已確認數（<code>totalConfirmedCount</code>）快取。其他 isolate 的看板最多 15 秒後更新，累計已確認數最多 60 秒後更新。</span>
+                  <span class="step-note">重算提供者違規計數後，由 <code>runInBackground</code> 在回應之後推播通知提供者：「你分享的邀請碼已成功幫助版友 [領取者]」，內文附上領取者的感謝小卡；並呼叫 <code>invalidateBoardAndTotalConfirmedCount()</code>，清掉本 isolate 的看板快取與累計已確認數（<code>totalConfirmedCount</code>）快取。其他 isolate 的看板最多 15 秒後更新，累計已確認數最多 60 秒後更新。</span>
                 </div>
               </div>
             </div>
@@ -1854,7 +1854,7 @@ sequenceDiagram
   User->>Hono: POST /api/queue/confirm
   Hono->>QueueSvc: confirmSlot(userId)
   QueueSvc->>Repo: confirmRevealedSlot (slot 與 queue entry status = 'confirmed')
-  QueueSvc->>PushSvc: sendNotificationToUser(providerId, '你分享的邀請碼已成功幫助社友 小華') 由 runInBackground 在回應後送出
+  QueueSvc->>PushSvc: sendNotificationToUser(providerId, '你分享的邀請碼已成功幫助版友 小華') 由 runInBackground 在回應後送出
   PushSvc-->>Provider: 💌 Web Push 感謝推播
   QueueSvc->>QueueSvc: onSlotConfirmed() 即 invalidateBoardAndTotalConfirmedCount()，本 isolate 清掉快取，其他 isolate 最多 15 秒後更新看板
   QueueSvc-->>User: 200 OK { confirmed: true }

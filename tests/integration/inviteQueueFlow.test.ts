@@ -264,7 +264,7 @@ describe('Invite Queue Backend Integration Flows (D1 + Service + Hono Router)', 
 
     const providerPushes = recordedPushes.filter((p) => p.userId === providerP.userId);
     expect(providerPushes).toHaveLength(1);
-    expect(providerPushes[0]?.payload.title).toContain('小華');
+    expect(providerPushes[0]?.payload.title).toBe('你分享的邀請碼已成功幫助版友 小華');
     expect(providerPushes[0]?.payload.body).toContain('謝謝小張大大分享邀請碼！祝你事事順心！');
 
     const board = await fetchBoard(app, env);
