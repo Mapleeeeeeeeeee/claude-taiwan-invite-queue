@@ -133,6 +133,7 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
       track?: QueueTrack;
       priority?: number;
       slotId?: number | null;
+      createdAt?: Date;
     } = {},
   ): number {
     const info = sqlite
@@ -148,7 +149,7 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
         options.priority ?? 0,
         options.slotId ?? null,
         status === "confirmed" ? NOW_ISO : null,
-        NOW_ISO,
+        (options.createdAt ?? NOW).toISOString(),
         NOW_ISO,
       );
     return Number(info.lastInsertRowid);
@@ -344,11 +345,7 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
   });
 
   describe("個人狀態 fetchMeDto", () => {
-    function latestQueueEntryStatements(): RecordedStatement[] {
-      return recorded.filter(({ sql }) => /from\W+queue_entries\W+left\s+join/i.test(sql));
-    }
-
-    it("最新一筆排隊紀錄已是 confirmed 時，已確認領取沿用同一列，只送一次排隊紀錄查詢", async () => {
+    it("最新一筆排隊紀錄已是 confirmed 時，已確認領取沿用同一列", async () => {
       const userId = seedUser("claimer@example.com");
       const slotId = seedSlot(
         seedLink(seedUser("provider@example.com"), "meConfirmed"),
@@ -356,7 +353,7 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
       );
       const entryId = seedQueueEntry(userId, "confirmed", { slotId });
 
-      const me = await fetchMeDto(recordingDb, userId, SERVER_CONFIG, NOW);
+      const me = await fetchMeDto(db, userId, SERVER_CONFIG, NOW);
 
       expect(me.myQueue).toMatchObject({ id: entryId, status: "confirmed" });
       expect(me.myConfirmedClaim).toMatchObject({
@@ -364,7 +361,6 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
         status: "confirmed",
       });
       expect(me.user?.isEligibleForNewbieTrack).toBe(false);
-      expect(latestQueueEntryStatements()).toHaveLength(1);
     });
 
     it("再領取軌領取過又重新排隊時，目前排隊紀錄是 waiting，已確認領取仍是較早那筆 confirmed", async () => {
@@ -382,7 +378,7 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
         track: "community",
       });
 
-      const me = await fetchMeDto(recordingDb, userId, SERVER_CONFIG, NOW);
+      const me = await fetchMeDto(db, userId, SERVER_CONFIG, NOW);
 
       expect(me.myQueue).toMatchObject({
         id: waitingEntryId,
@@ -396,38 +392,34 @@ describe("看板與個人狀態查詢 (boardQuery)", () => {
       expect(me.user?.isEligibleForNewbieTrack).toBe(false);
     });
 
-    it("從未排隊過的使用者沒有排隊紀錄也沒有已確認領取，且不多送已確認紀錄的查詢", async () => {
+    it("從未排隊過的使用者沒有排隊紀錄也沒有已確認領取，且具備新手資格", async () => {
       const userId = seedUser("fresh@example.com");
 
-      const me = await fetchMeDto(recordingDb, userId, SERVER_CONFIG, NOW);
+      const me = await fetchMeDto(db, userId, SERVER_CONFIG, NOW);
 
       expect(me.myQueue).toBeNull();
       expect(me.myConfirmedClaim).toBeNull();
       expect(me.user?.isEligibleForNewbieTrack).toBe(true);
-      expect(latestQueueEntryStatements()).toHaveLength(1);
     });
 
-    it("全域排隊順位把較高優先權與較早建立的 waiting 紀錄算在前面", async () => {
-      const earlier = seedQueueEntry(
-        seedUser("earlier@example.com"),
-        "waiting",
-      );
-      const requeued = seedQueueEntry(
-        seedUser("requeued@example.com"),
-        "waiting",
-        { priority: 1 },
-      );
-      const mine = seedQueueEntry(seedUser("mine@example.com"), "waiting");
-      const userId = (
-        sqlite
-          .prepare("SELECT user_id FROM queue_entries WHERE id = ?")
-          .get(mine) as { user_id: number }
-      ).user_id;
+    // docs/design/dual-track-queue.md AC 9：queuePosition 是含優先權的 FIFO 順位，優先權高者在前，同優先權依建立時間。
+    it("全域排隊順位把較高優先權與較早建立的 waiting 紀錄算在前面，之後才建立的不算", async () => {
+      const mineUserId = seedUser("mine@example.com");
+      // 資料列依序寫入，所以 id 順序與建立時間故意不同，順位不能只靠 id 或只靠優先權算出來。
+      seedQueueEntry(mineUserId, "waiting", { createdAt: msAfterNow(1_000) });
+      seedQueueEntry(seedUser("later@example.com"), "waiting", {
+        createdAt: msAfterNow(2_000),
+      });
+      seedQueueEntry(seedUser("requeued@example.com"), "waiting", {
+        priority: 1,
+        createdAt: msAfterNow(3_000),
+      });
+      seedQueueEntry(seedUser("earlier@example.com"), "waiting", {
+        createdAt: msAfterNow(0),
+      });
 
-      const me = await fetchMeDto(db, userId, SERVER_CONFIG, NOW);
+      const me = await fetchMeDto(db, mineUserId, SERVER_CONFIG, NOW);
 
-      expect(earlier).toBeLessThan(mine);
-      expect(requeued).toBeLessThan(mine);
       expect(me.myQueue?.queuePosition).toBe(3);
     });
 

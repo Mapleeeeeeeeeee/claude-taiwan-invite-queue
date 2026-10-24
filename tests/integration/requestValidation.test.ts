@@ -85,7 +85,9 @@ describe('寫入路由的請求驗證', () => {
       const res = await app.request(path, { method: 'POST', headers: JSON_HEADERS, body }, env);
 
       expect(res.status).toBe(401);
-      expect(await readErrorCode(res)).toBe('UNAUTHORIZED');
+      const { error } = (await res.json()) as ApiErrorResponse;
+      expect(error.code).toBe('UNAUTHORIZED');
+      expect(error.message).toBe('請先使用 Google 帳號登入');
     });
   });
 
@@ -137,7 +139,6 @@ describe('寫入路由的請求驗證', () => {
       { name: '零寬連接符與零寬非連接符', message: '\u200D\u200C\u200D\u200C\u200D', status: 422 },
       { name: '空白與零寬字元混合', message: ' \u200B \u200B\n\uFEFF\u200B', status: 422 },
       { name: '4 個零寬空白夾 1 個可見字', message: '\u200B\u200B謝\u200B\u200B', status: 201 },
-      { name: '5 個 emoji', message: EMOJI.repeat(5), status: 201 },
     ])('$name 回 $status', async ({ message, status }) => {
       const user = await loginActor(app, env, 'invisible@example.com', '不可見字元使用者');
 

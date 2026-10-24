@@ -15,7 +15,7 @@ const VALID_BODY_BY_PATH: Record<string, unknown> = {
   '/api/queue/cancel': undefined,
   '/api/queue/report-invalid': undefined,
   '/api/push/subscribe': {
-    endpoint: 'https://push.example.com/rate-limit',
+    endpoint: 'https://fcm.googleapis.com/fcm/send/rate-limit',
     keys: { p256dh: 'p256dh-key', auth: 'auth-key' },
   },
   '/api/push/test': undefined,
@@ -112,7 +112,7 @@ describe('寫入 API 的請求頻率限制', () => {
     const lightUserFirst = await postJson('/api/queue/cancel', lightUser.cookie, limitedEnv);
 
     expect(heavyUserSecond.status).toBe(429);
-    expect(lightUserFirst.status).not.toBe(429);
+    expect(lightUserFirst.status).toBe(404);
   });
 
   it('Given_限流器全部擋下_When_登入與讀取_Then_不受限流影響', async () => {

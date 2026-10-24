@@ -16,6 +16,7 @@ import {
 } from '../shared/types';
 import { countThankYouMessageChars } from '../shared/thankYouMessage';
 import { hasVisibleText } from '../shared/visibleText';
+import { isKnownPushServiceEndpoint } from './domain/pushEndpoint';
 import { extractAndNormalizeReferralLink } from './domain/rules';
 import { buildErrorBody } from './errorHandler';
 import { AppError } from './errors';
@@ -81,11 +82,17 @@ export const pushSubscribeSchema = z.object({
   endpoint: z
     .string()
     .max(MAX_PUSH_ENDPOINT_LENGTH, `推播訂閱網址不可超過 ${MAX_PUSH_ENDPOINT_LENGTH} 字`)
-    .pipe(z.url({ protocol: /^https$/, error: '推播訂閱網址必須是 https 網址' })),
+    .pipe(z.url({ protocol: /^https$/, error: '推播訂閱網址必須是 https 網址' }))
+    .refine(isKnownPushServiceEndpoint, '推播訂閱網址必須來自瀏覽器的推播服務'),
   keys: z.object({
     p256dh: z.string().min(1, '缺少 p256dh 金鑰'),
     auth: z.string().min(1, '缺少 auth 金鑰'),
   }),
+});
+
+/** 登出時可選的 body：帶上這台裝置的推播訂閱網址，伺服器順便移除它。 */
+export const logoutSchema = z.object({
+  endpoint: z.string().max(MAX_PUSH_ENDPOINT_LENGTH),
 });
 
 interface ValidationFailure {

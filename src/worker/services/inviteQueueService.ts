@@ -220,11 +220,12 @@ export class InviteQueueService {
 
     if (latestEntry.status === 'reserved' && latestEntry.slotId !== null) {
       const slotWithLink = await this.repo.findSlotWithLinkById(latestEntry.slotId);
-      const cancelled = await this.repo.cancelReservedQueueEntryAndReleaseSlot(
-        latestEntry.id,
-        latestEntry.slotId,
-        nowIso
-      );
+      const cancelled = await this.repo.cancelReservedQueueEntryAndReleaseSlot({
+        queueEntryId: latestEntry.id,
+        slotId: latestEntry.slotId,
+        userId,
+        nowIso,
+      });
       if (!cancelled) {
         throw cannotCancelError();
       }

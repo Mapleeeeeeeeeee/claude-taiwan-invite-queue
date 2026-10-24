@@ -11,7 +11,7 @@ import { type AppInstance, loginActor } from '../helpers/testActor';
 import { createTestD1Database } from '../helpers/testD1';
 
 const REFERRAL_URL_PREFIX = 'https://claude.ai/referral/';
-const PUSH_ENDPOINT_PREFIX = 'https://push.invalid/';
+const PUSH_ENDPOINT_PREFIX = 'https://fcm.googleapis.com/fcm/send/';
 
 describe('邀請連結與推播訂閱的輸入長度上限', () => {
   let env: Env;
@@ -89,12 +89,12 @@ describe('邀請連結與推播訂閱的輸入長度上限', () => {
 
   describe('POST /api/push/subscribe', () => {
     // Regression: 推播訂閱 endpoint 沒有長度上限 (QA F-5)
-    it.each([
-      { name: 'endpoint 比上限多 1 字', padding: MAX_PUSH_ENDPOINT_LENGTH },
-    ])('$name 時回 422 VALIDATION_ERROR 且不寫入資料庫', async ({ padding }) => {
+    it('endpoint 比上限多 1 字時回 422 VALIDATION_ERROR 且不寫入資料庫', async () => {
       const subscriber = await loginActor(app, env, 'toolong-push@example.com', '長輸入訂閱者');
 
-      const res = await subscriber.subscribePush(`${PUSH_ENDPOINT_PREFIX}${'d'.repeat(padding)}`);
+      const res = await subscriber.subscribePush(
+        `${PUSH_ENDPOINT_PREFIX}${'d'.repeat(MAX_PUSH_ENDPOINT_LENGTH)}`
+      );
 
       expect(res.status).toBe(422);
       expect(((await res.json()) as ApiErrorResponse).error.code).toBe('VALIDATION_ERROR');

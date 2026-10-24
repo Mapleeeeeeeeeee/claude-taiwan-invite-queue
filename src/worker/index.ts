@@ -25,6 +25,7 @@ import {
   googleLoginSchema,
   joinQueueSchema,
   limitRequestBody,
+  logoutSchema,
   pushSubscribeSchema,
   submitLinkSchema,
   validateJson,
@@ -66,6 +67,18 @@ function getRunInBackground(c: Context): RunInBackground | undefined {
   } catch (error) {
     if (error instanceof Error && error.message === HONO_NO_EXECUTION_CONTEXT_MESSAGE) {
       return undefined;
+    }
+    throw error;
+  }
+}
+
+/** 讀取 JSON body；沒有 body 或不是合法 JSON 時回傳 `null`。 */
+async function readJsonBodyOrNull(c: Context): Promise<unknown> {
+  try {
+    return await c.req.json();
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      return null;
     }
     throw error;
   }
@@ -213,7 +226,13 @@ export function createApp(options?: CreateAppOptions) {
     }
   );
 
-  app.post('/api/auth/logout', (c) => {
+  // body 是選填的，壞掉或不合規格都當作沒帶，登出不能因此失敗。
+  app.post('/api/auth/logout', async (c) => {
+    const userId = c.get('userId');
+    const body = logoutSchema.safeParse(await readJsonBodyOrNull(c));
+    if (userId !== null && body.success) {
+      await c.get('services').pushService.removeSubscription(userId, body.data.endpoint);
+    }
     deleteCookie(c, SESSION_COOKIE_NAME, { path: '/' });
     return c.json({ data: { loggedOut: true } }, 200);
   });

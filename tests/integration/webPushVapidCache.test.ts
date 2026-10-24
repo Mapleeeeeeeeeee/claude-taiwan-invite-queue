@@ -3,6 +3,7 @@ import { PushSubscriptionRepository } from '../../src/worker/repositories/pushSu
 import { UserRepository } from '../../src/worker/repositories/userRepository';
 import { WebPushService } from '../../src/worker/services/webPushService';
 import { createTestD1Database } from '../helpers/testD1';
+import { type TestPushSubscriber, createTestPushSubscriber } from '../helpers/webPushTestKeys';
 
 const UNCOMPRESSED_P256_POINT_PREFIX = 0x04;
 const NOW_ISO = '2026-03-01T10:00:00.000Z';
@@ -36,15 +37,21 @@ describe('VAPID JWT 快取', () => {
   let pushRepo: PushSubscriptionRepository;
   let userRepo: UserRepository;
   let signSpy: ReturnType<typeof vi.spyOn>;
+  // 金鑰不合規的訂閱會在簽章前就被移除，所以這組測試的訂閱都要帶合規的金鑰。
+  let device: TestPushSubscriber;
 
   beforeEach(async () => {
+    device = await createTestPushSubscriber();
     const { db } = createTestD1Database();
     pushRepo = new PushSubscriptionRepository(db);
     userRepo = new UserRepository(db);
     // 快取是模組層級的 Map；每個測試用獨一無二的 VAPID 金鑰，快取 key 才不會互相汙染。
     service = new WebPushService(pushRepo, { vapidConfig: await generateVapidConfig() });
     signSpy = vi.spyOn(crypto.subtle, 'sign');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 201 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 201 }))
+    );
   });
 
   afterEach(() => {
@@ -52,10 +59,7 @@ describe('VAPID JWT 快取', () => {
     vi.restoreAllMocks();
   });
 
-  async function createUserWithSubscriptions(
-    email: string,
-    endpoints: string[]
-  ): Promise<number> {
+  async function createUserWithSubscriptions(email: string, endpoints: string[]): Promise<number> {
     const user = await userRepo.upsertUserByGoogleProfile({
       googleSub: `sub-${email}`,
       email,
@@ -66,8 +70,7 @@ describe('VAPID JWT 快取', () => {
       await pushRepo.upsertPushSubscription({
         userId: user.id,
         endpoint,
-        p256dh: 'AAAA',
-        auth: 'AAAA',
+        ...device.keys,
         nowIso: NOW_ISO,
       });
     }

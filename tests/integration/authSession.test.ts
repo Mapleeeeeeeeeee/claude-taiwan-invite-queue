@@ -1,3 +1,4 @@
+import { sign } from "hono/jwt";
 import { beforeEach, describe, expect, it } from "vitest";
 import type {
   ApiErrorResponse,
@@ -11,6 +12,8 @@ import { createTestD1Database } from "../helpers/testD1";
 
 const GOOGLE_PROFILE_NAME = "Google 顯示名稱";
 const JSON_HEADERS = { "Content-Type": "application/json" };
+// 2000-01-01T00:00:00Z，不論測試何時執行都已過期。
+const EXPIRED_EXP_SECONDS = 946684800;
 
 describe("登入、session cookie 與入口設定", () => {
   let env: Env;
@@ -146,9 +149,34 @@ describe("登入、session cookie 與入口設定", () => {
       ).data;
       expect(user).toEqual({
         id: expect.any(Number),
-        email: expect.stringMatching(/^dto/),
+        email: "dto@example.com",
         nickname: "小明",
       });
+    });
+  });
+
+  describe("session cookie 屬性", () => {
+    // docs/arch/invite-code-queue.md 規定 Session Cookie 為 HttpOnly；其他屬性（SameSite、Secure、Max-Age）架構文件沒有規定。
+    it.each([
+      {
+        route: "dev-login",
+        path: "/api/auth/dev-login",
+        body: { email: "cookie@example.com" },
+      },
+      {
+        route: "Google 登入",
+        path: "/api/auth/google",
+        body: { idToken: "cookie" },
+      },
+    ])("$route 回應的 session cookie 帶 HttpOnly", async ({ path, body }) => {
+      const res = await postJson(path, body);
+
+      expect(res.status).toBe(200);
+      const attributes = res.headers
+        .get("set-cookie")!
+        .split(";")
+        .map((part) => part.trim().toLowerCase());
+      expect(attributes).toContain("httponly");
     });
   });
 
@@ -209,6 +237,50 @@ describe("登入、session cookie 與入口設定", () => {
       ).toBeNull();
     });
 
+    it("cookie 的 header 與 payload 合法、簽章被換成別人的簽章時，視為未登入", async () => {
+      const victim = await loginActor(app, env, "victim@example.com", "受害者");
+      const attacker = await loginActor(app, env, "attacker@example.com", "攻擊者");
+      const [victimHeader, victimPayload] = victim.cookie
+        .replace("claude_tw_session=", "")
+        .split(".");
+      const attackerSignature = attacker.cookie.split(".")[2];
+
+      const res = await app.request(
+        "/api/me",
+        {
+          headers: {
+            Cookie: `claude_tw_session=${victimHeader}.${victimPayload}.${attackerSignature}`,
+          },
+        },
+        env,
+      );
+
+      expect(res.status).toBe(200);
+      expect(
+        ((await res.json()) as ApiSuccessResponse<MeDto>).data.user,
+      ).toBeNull();
+    });
+
+    it("cookie 用正確的 secret 簽章、但 exp 已過期時，視為未登入", async () => {
+      const actor = await loginActor(app, env, "expired@example.com", "過期者");
+      const expiredToken = await sign(
+        { userId: actor.userId, email: actor.email, exp: EXPIRED_EXP_SECONDS },
+        env.SESSION_SECRET!,
+        "HS256",
+      );
+
+      const res = await app.request(
+        "/api/me",
+        { headers: { Cookie: `claude_tw_session=${expiredToken}` } },
+        env,
+      );
+
+      expect(res.status).toBe(200);
+      expect(
+        ((await res.json()) as ApiSuccessResponse<MeDto>).data.user,
+      ).toBeNull();
+    });
+
     it("登入後帶著 cookie 的 GET /api/me 回傳該使用者", async () => {
       const actor = await loginActor(app, env, "session@example.com", "登入者");
 
@@ -227,7 +299,7 @@ describe("登入、session cookie 與入口設定", () => {
 
       const res = await postJson(
         "/api/push/subscribe",
-        { endpoint: "http://push.example.com/a", keys },
+        { endpoint: "http://fcm.googleapis.com/fcm/send/a", keys },
         actor.cookie,
       );
 
@@ -242,7 +314,7 @@ describe("登入、session cookie 與入口設定", () => {
 
       const res = await postJson(
         "/api/push/subscribe",
-        { endpoint: "https://push.example.com/a", keys },
+        { endpoint: "https://fcm.googleapis.com/fcm/send/a", keys },
         actor.cookie,
       );
 

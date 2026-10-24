@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, notInArray } from 'drizzle-orm';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { pushSubscriptions } from '../db/schema';
 
@@ -48,10 +48,35 @@ export class PushSubscriptionRepository {
       .all();
   }
 
-  async deletePushSubscriptionByEndpoint(endpoint: string): Promise<void> {
+  /** 只保留 `userId` 最近訂閱（`updated_at` 最新）的 `keepCount` 筆，刪掉其餘較舊的。 */
+  async deleteOldestPushSubscriptionsBeyond(userId: number, keepCount: number): Promise<void> {
+    const newestSubscriptionIds = this.db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId))
+      .orderBy(desc(pushSubscriptions.updatedAt), desc(pushSubscriptions.id))
+      .limit(keepCount);
+
     await this.db
       .delete(pushSubscriptions)
-      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .where(
+        and(
+          eq(pushSubscriptions.userId, userId),
+          notInArray(pushSubscriptions.id, newestSubscriptionIds)
+        )
+      )
       .run();
+  }
+
+  /** 刪除 `endpoint` 的訂閱，但只限它屬於 `userId` 時；不屬於或不存在時不做任何事。 */
+  async deletePushSubscriptionOfUser(userId: number, endpoint: string): Promise<void> {
+    await this.db
+      .delete(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.userId, userId), eq(pushSubscriptions.endpoint, endpoint)))
+      .run();
+  }
+
+  async deletePushSubscriptionByEndpoint(endpoint: string): Promise<void> {
+    await this.db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).run();
   }
 }

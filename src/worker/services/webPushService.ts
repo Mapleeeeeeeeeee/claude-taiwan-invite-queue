@@ -40,6 +40,20 @@ export class PushDeliveryError extends Error {
   }
 }
 
+/** 訂閱的金鑰不符 Web Push 規格而無法加密。這種訂閱不會自己變好，所以和推播服務回 404、410 一樣直接移除。 */
+export class MalformedPushSubscriptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MalformedPushSubscriptionError';
+  }
+}
+
+/**
+ * 每位使用者最多保留的推播訂閱數（手機、平板、電腦等裝置）。
+ * 失效的訂閱只有在推播服務回 404 或 410 時才會被清掉，所以超過上限時刪最舊的，而不是拒絕新的。
+ */
+export const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 10;
+
 const VAPID_TOKEN_TTL_SECONDS = 12 * 60 * 60;
 // 快取的 JWT 剩餘時間低於這個值就重簽，避免送出去時剛好過期。
 const VAPID_TOKEN_REFRESH_MARGIN_SECONDS = 60 * 60;
@@ -310,45 +324,59 @@ function isExpectedPushFailure(
   );
 }
 
+/** 解出訂閱的接收端公鑰與驗證密鑰；格式或長度不符 Web Push 規格時丟 `MalformedPushSubscriptionError`。 */
+function decodeWebPushKeys(subscription: StoredPushSubscriptionRow): {
+  clientPublicKeyBytes: Uint8Array<ArrayBuffer>;
+  authSecretBytes: Uint8Array<ArrayBuffer>;
+} {
+  let clientPublicKeyBytes: Uint8Array<ArrayBuffer>;
+  let authSecretBytes: Uint8Array<ArrayBuffer>;
+  try {
+    clientPublicKeyBytes = decodeBase64Url(subscription.p256dh);
+    authSecretBytes = decodeBase64Url(subscription.auth);
+  } catch (error) {
+    // atob 遇到非 base64 字元會丟 DOMException。
+    if (error instanceof DOMException) {
+      throw new MalformedPushSubscriptionError('推播訂閱的金鑰不是合法的 base64url');
+    }
+    throw error;
+  }
+
+  const hasValidWebPushKeys =
+    clientPublicKeyBytes.length === P256_UNCOMPRESSED_PUBLIC_KEY_BYTE_LENGTH &&
+    clientPublicKeyBytes[0] === P256_UNCOMPRESSED_PREFIX &&
+    authSecretBytes.length === WEB_PUSH_AUTH_SECRET_BYTE_LENGTH;
+  if (!hasValidWebPushKeys) {
+    throw new MalformedPushSubscriptionError('推播訂閱的金鑰長度不符 Web Push 規格');
+  }
+  return { clientPublicKeyBytes, authSecretBytes };
+}
+
 function createVapidHttpPushSender(vapidConfig: VapidConfig): PushSender {
   return async (subscription, payload): Promise<PushSendResult> => {
+    // 金鑰不合規就不送：沒有加密的內容不能交給推播服務。
+    const { clientPublicKeyBytes, authSecretBytes } = decodeWebPushKeys(subscription);
     const endpointUrl = new URL(subscription.endpoint);
     const audienceOrigin = `${endpointUrl.protocol}//${endpointUrl.host}`;
     const nowSeconds = Math.floor(Date.now() / 1000);
 
     try {
       const jwt = await getVapidJwt(audienceOrigin, vapidConfig, nowSeconds);
-      const serializedPayload = JSON.stringify(payload);
-
-      let requestBody: BodyInit = serializedPayload;
-      const headers: Record<string, string> = {
-        Authorization: `vapid t=${jwt}, k=${vapidConfig.publicKey}`,
-        'Content-Type': 'application/json',
-        TTL: String(PUSH_MESSAGE_TTL_SECONDS),
-      };
-
-      const clientPublicKeyBytes = decodeBase64Url(subscription.p256dh);
-      const authSecretBytes = decodeBase64Url(subscription.auth);
-      const hasValidWebPushKeys =
-        clientPublicKeyBytes.length === P256_UNCOMPRESSED_PUBLIC_KEY_BYTE_LENGTH &&
-        clientPublicKeyBytes[0] === P256_UNCOMPRESSED_PREFIX &&
-        authSecretBytes.length === WEB_PUSH_AUTH_SECRET_BYTE_LENGTH;
-
-      if (hasValidWebPushKeys) {
-        const encryptedBody = await encryptWebPushPayloadAes128Gcm(
-          new TextEncoder().encode(serializedPayload),
-          clientPublicKeyBytes,
-          authSecretBytes
-        );
-        requestBody = encryptedBody;
-        headers['Content-Encoding'] = 'aes128gcm';
-        headers['Content-Type'] = 'application/octet-stream';
-      }
+      const encryptedBody = await encryptWebPushPayloadAes128Gcm(
+        new TextEncoder().encode(JSON.stringify(payload)),
+        clientPublicKeyBytes,
+        authSecretBytes
+      );
 
       const response = await fetch(subscription.endpoint, {
         method: 'POST',
-        headers,
-        body: requestBody,
+        headers: {
+          Authorization: `vapid t=${jwt}, k=${vapidConfig.publicKey}`,
+          'Content-Encoding': 'aes128gcm',
+          'Content-Type': 'application/octet-stream',
+          TTL: String(PUSH_MESSAGE_TTL_SECONDS),
+        },
+        body: encryptedBody,
       });
 
       return { statusCode: response.status };
@@ -397,7 +425,14 @@ export class WebPushService {
       auth: input.keys.auth,
       nowIso: now.toISOString(),
     });
+    await this.repo.deleteOldestPushSubscriptionsBeyond(userId, MAX_PUSH_SUBSCRIPTIONS_PER_USER);
     logInfo('push.subscription_saved', { userId });
+  }
+
+  /** 移除 `userId` 名下 `endpoint` 的訂閱；`endpoint` 不存在或屬於別人時不做任何事。 */
+  async removeSubscription(userId: number, endpoint: string): Promise<void> {
+    await this.repo.deletePushSubscriptionOfUser(userId, endpoint);
+    logInfo('push.subscription_removed_by_user', { userId });
   }
 
   /**
@@ -454,6 +489,11 @@ export class WebPushService {
     try {
       result = await this.sender(subscription, payload);
     } catch (error) {
+      if (error instanceof MalformedPushSubscriptionError) {
+        await this.repo.deletePushSubscriptionByEndpoint(subscription.endpoint);
+        logWarn('push.subscription_removed_malformed', { userId, reason: error.message });
+        return 'removed_expired';
+      }
       if (isExpectedPushFailure(error)) {
         logWarn('push.delivery_exception', {
           userId,

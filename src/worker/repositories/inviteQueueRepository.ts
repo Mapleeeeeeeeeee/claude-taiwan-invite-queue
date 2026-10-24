@@ -9,6 +9,7 @@ import {
   inArray,
   lt,
   lte,
+  ne,
   sql,
   type SQL,
 } from 'drizzle-orm';
@@ -420,17 +421,62 @@ export class InviteQueueRepository {
     return allAffectedExactlyOne([result]);
   }
 
-  async cancelReservedQueueEntryAndReleaseSlot(
-    queueEntryId: number,
-    slotId: number,
-    nowIso: string
-  ): Promise<boolean> {
+  /**
+   * 取消 `reserved` 的排隊紀錄並釋出它持有的名額。
+   * 兩條語句互相綁定：名額必須仍保留給 `userId` 且這筆紀錄仍是 `reserved` 並持有該名額，才會釋出；
+   * 紀錄也要等名額確實不再 `reserved` 才取消。
+   * 否則舊請求會把已逾時結算後改保留給別人的名額放掉。
+   */
+  async cancelReservedQueueEntryAndReleaseSlot(params: {
+    queueEntryId: number;
+    slotId: number;
+    userId: number;
+    nowIso: string;
+  }): Promise<boolean> {
+    const entryStillHoldsSlot = exists(
+      this.db
+        .select({ id: queueEntries.id })
+        .from(queueEntries)
+        .where(
+          and(
+            eq(queueEntries.id, params.queueEntryId),
+            eq(queueEntries.status, 'reserved'),
+            eq(queueEntries.userId, params.userId),
+            eq(queueEntries.slotId, params.slotId)
+          )
+        )
+    );
+    // 第一條語句沒有放掉名額時，名額仍是 reserved，第二條語句就不能取消紀錄。
+    const slotWasReleased = exists(
+      this.db
+        .select({ id: inviteSlots.id })
+        .from(inviteSlots)
+        .where(and(eq(inviteSlots.id, params.slotId), ne(inviteSlots.status, 'reserved')))
+    );
+
     const results = await this.db.batch([
+      this.releaseReservedSlot(
+        params.slotId,
+        params.nowIso,
+        and(eq(inviteSlots.assignedUserId, params.userId), entryStillHoldsSlot)
+      ),
       this.db
         .update(queueEntries)
-        .set({ status: 'cancelled', slotId: null, reserveExpiresAt: null, updatedAt: nowIso })
-        .where(and(eq(queueEntries.id, queueEntryId), eq(queueEntries.status, 'reserved'))),
-      this.releaseReservedSlot(slotId, nowIso),
+        .set({
+          status: 'cancelled',
+          slotId: null,
+          reserveExpiresAt: null,
+          updatedAt: params.nowIso,
+        })
+        .where(
+          and(
+            eq(queueEntries.id, params.queueEntryId),
+            eq(queueEntries.status, 'reserved'),
+            eq(queueEntries.userId, params.userId),
+            eq(queueEntries.slotId, params.slotId),
+            slotWasReleased
+          )
+        ),
     ]);
 
     return allAffectedExactlyOne(results);
@@ -460,6 +506,10 @@ export class InviteQueueRepository {
     return { slot, normalizedUrl, providerUserId };
   }
 
+  /**
+   * 解鎖 `reserved` 的名額。兩條語句互相綁定：名額要等排隊紀錄確實持有它且保留未逾時才解鎖，
+   * 紀錄要等名額被這次請求解鎖才轉為 `revealed`，所以其中一邊已被別的請求改掉時不會只改到另一邊。
+   */
   async revealReservedSlot(params: {
     slotId: number;
     queueEntryId: number;
@@ -467,6 +517,34 @@ export class InviteQueueRepository {
     nowIso: string;
     confirmExpiresAtIso: string;
   }): Promise<boolean> {
+    const entryStillHoldsSlot = exists(
+      this.db
+        .select({ id: queueEntries.id })
+        .from(queueEntries)
+        .where(
+          and(
+            eq(queueEntries.id, params.queueEntryId),
+            eq(queueEntries.status, 'reserved'),
+            eq(queueEntries.userId, params.userId),
+            eq(queueEntries.slotId, params.slotId),
+            gt(queueEntries.reserveExpiresAt, params.nowIso)
+          )
+        )
+    );
+    const slotWasRevealedByThisRequest = exists(
+      this.db
+        .select({ id: inviteSlots.id })
+        .from(inviteSlots)
+        .where(
+          and(
+            eq(inviteSlots.id, params.slotId),
+            eq(inviteSlots.status, 'revealed'),
+            eq(inviteSlots.assignedUserId, params.userId),
+            eq(inviteSlots.revealedAt, params.nowIso)
+          )
+        )
+    );
+
     const results = await this.db.batch([
       this.db
         .update(inviteSlots)
@@ -480,7 +558,8 @@ export class InviteQueueRepository {
             eq(inviteSlots.id, params.slotId),
             eq(inviteSlots.status, 'reserved'),
             eq(inviteSlots.assignedUserId, params.userId),
-            gt(inviteSlots.reserveExpiresAt, params.nowIso)
+            gt(inviteSlots.reserveExpiresAt, params.nowIso),
+            entryStillHoldsSlot
           )
         ),
       this.db
@@ -495,7 +574,9 @@ export class InviteQueueRepository {
             eq(queueEntries.id, params.queueEntryId),
             eq(queueEntries.status, 'reserved'),
             eq(queueEntries.userId, params.userId),
-            gt(queueEntries.reserveExpiresAt, params.nowIso)
+            eq(queueEntries.slotId, params.slotId),
+            gt(queueEntries.reserveExpiresAt, params.nowIso),
+            slotWasRevealedByThisRequest
           )
         ),
     ]);
@@ -503,20 +584,62 @@ export class InviteQueueRepository {
     return allAffectedExactlyOne(results);
   }
 
+  /**
+   * 確認 `revealed` 的名額。兩條語句互相綁定：名額要等排隊紀錄確實持有它才確認，
+   * 紀錄要等名額被這次請求確認才轉為 `confirmed`，所以舊請求不會把已改配其他名額的紀錄標成已確認。
+   */
   async confirmRevealedSlot(params: {
     slotId: number;
     queueEntryId: number;
     nowIso: string;
   }): Promise<boolean> {
+    const entryStillHoldsSlot = exists(
+      this.db
+        .select({ id: queueEntries.id })
+        .from(queueEntries)
+        .where(
+          and(
+            eq(queueEntries.id, params.queueEntryId),
+            eq(queueEntries.status, 'revealed'),
+            eq(queueEntries.slotId, params.slotId)
+          )
+        )
+    );
+    const slotWasConfirmedByThisRequest = exists(
+      this.db
+        .select({ id: inviteSlots.id })
+        .from(inviteSlots)
+        .where(
+          and(
+            eq(inviteSlots.id, params.slotId),
+            eq(inviteSlots.status, 'confirmed'),
+            eq(inviteSlots.confirmedAt, params.nowIso)
+          )
+        )
+    );
+
     const results = await this.db.batch([
       this.db
         .update(inviteSlots)
         .set({ status: 'confirmed', confirmedAt: params.nowIso })
-        .where(and(eq(inviteSlots.id, params.slotId), eq(inviteSlots.status, 'revealed'))),
+        .where(
+          and(
+            eq(inviteSlots.id, params.slotId),
+            eq(inviteSlots.status, 'revealed'),
+            entryStillHoldsSlot
+          )
+        ),
       this.db
         .update(queueEntries)
         .set({ status: 'confirmed', confirmedAt: params.nowIso, updatedAt: params.nowIso })
-        .where(and(eq(queueEntries.id, params.queueEntryId), eq(queueEntries.status, 'revealed'))),
+        .where(
+          and(
+            eq(queueEntries.id, params.queueEntryId),
+            eq(queueEntries.status, 'revealed'),
+            eq(queueEntries.slotId, params.slotId),
+            slotWasConfirmedByThisRequest
+          )
+        ),
     ]);
 
     return allAffectedExactlyOne(results);
