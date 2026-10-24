@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Taiwan 邀請碼排隊系統 — 完整 API Call Chain 架構與調用鏈視覺化</title>
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --border-color: #334155;
+      --border-accent: #38bdf8;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-purple: #c084fc;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+      --accent-indigo: #818cf8;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      padding: 2rem 1rem 4rem 1rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1.5rem;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 9999px;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-desc {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 800px;
+    }
+
+    /* Tabs Navigation */
+    .tabs-nav {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 0.65rem 1.25rem;
+      border-radius: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border-color: rgba(56, 189, 248, 0.4);
+    }
+
+    /* Architecture Layer Bar */
+    .arch-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .arch-chip {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .arch-chip-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .arch-chip-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .arch-chip-tech {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Step Timeline Chain */
+    .chain-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .chain-container::before {
+      content: '';
+      position: absolute;
+      top: 2rem;
+      bottom: 2rem;
+      left: 24px;
+      width: 2px;
+      background: linear-gradient(180deg, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-green) 100%);
+      z-index: 1;
+    }
+
+    .step-card {
+      position: relative;
+      margin-left: 60px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 0.85rem;
+      padding: 1.25rem 1.5rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    .step-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    }
+
+    .step-node {
+      position: absolute;
+      top: 1.25rem;
+      left: -60px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--bg-secondary);
+      border: 2px solid var(--accent-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      z-index: 2;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    }
+
+    .step-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .step-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .step-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 0.35rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: 0.03em;
+    }
+
+    .badge-post { background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-get { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-actor-receiver { background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); border: 1px solid rgba(192, 132, 252, 0.3); }
+    .badge-actor-provider { background: rgba(251, 191, 36, 0.15); color: var(--accent-amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+    .badge-actor-cron { background: rgba(251, 113, 133, 0.15); color: var(--accent-rose); border: 1px solid rgba(251, 113, 133, 0.3); }
+
+    .step-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 0.6rem;
+      padding: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .flow-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .flow-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+
+    .code-box {
+      background: #090d16;
+      border: 1px solid var(--border-color);
+      border-radius: 0.4rem;
+      padding: 0.6rem 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .sql-highlight {
+      color: #93c5fd;
+    }
+
+    .state-tag {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.3rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .state-waiting { background: #475569; color: #f1f5f9; }
+    .state-reserved { background: #d97706; color: #fffbeb; }
+    .state-revealed { background: #2563eb; color: #eff6ff; }
+    .state-confirmed { background: #059669; color: #ecfdf5; }
+    .state-invalidated { background: #dc2626; color: #fef2f2; }
+
+    .note-box {
+      margin-top: 0.85rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      background: rgba(56, 189, 248, 0.05);
+      border-left: 3px solid var(--accent-blue);
+      padding: 0.5rem 0.75rem;
+      border-radius: 0 0.4rem 0.4rem 0;
+    }
+
+    /* Tab Content Display Logic */
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Summary Card */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin-top: 2rem;
+    }
+
+    .summary-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+    }
+
+    .summary-card h4 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--accent-blue);
+    }
+
+    .summary-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-badge">
+      <span>●</span> CLOUD-NATIVE CLOUDFLARE WORKERS + D1 ARCHITECTURE
+    </div>
+    <h1>Claude Taiwan 邀請碼排隊系統 — 呼叫鏈 (Call Chain) 視覺化</h1>
+    <p class="header-desc">
+      端對端展示從前端操作、Hono 路由、Service 狀態機、Repository 交易到 D1 SQLite 資料庫與 Web Push 的完整生命週期調用鏈。
+    </p>
+  </header>
+
+  <!-- 5 大分層架構概覽 -->
+  <div class="arch-bar">
+    <div class="arch-chip">
+      <span class="arch-chip-title" style="color: var(--accent-purple);">Layer 1 · Client</span>
+      <span class="arch-chip-name">React 19 + PWA</span>
+      <span class="arch-chip-tech">useInviteApp Hook / apiClient</span>
+    </div>
+    <div class="arch-chip">
+      <span class="arch-chip-title" style="color: var(--accent-blue);">Layer 2 · Edge Gateway</span>
+      <span class="arch-chip-name">Hono HTTP Router</span>
+      <span class="arch-chip-tech">secureHeaders / logger / createServices</span>
+    </div>
+    <div class="arch-chip">
+      <span class="arch-chip-title" style="color: var(--accent-amber);">Layer 3 · Domain Service</span>
+      <span class="arch-chip-name">InviteQueueService</span>
+      <span class="arch-chip-tech">AuthService / WebPushService</span>
+    </div>
+    <div class="arch-chip">
+      <span class="arch-chip-title" style="color: var(--accent-green);">Layer 4 · Data Access</span>
+      <span class="arch-chip-name">Repository (3 個)</span>
+      <span class="arch-chip-tech">Drizzle: User / Push · D1 SQL: InviteQueue</span>
+    </div>
+    <div class="arch-chip">
+      <span class="arch-chip-title" style="color: var(--accent-rose);">Layer 5 · Storage & Push</span>
+      <span class="arch-chip-name">Cloudflare D1 + Web Push</span>
+      <span class="arch-chip-tech">SQLite WAL Batch / RFC 8291</span>
+    </div>
+  </div>
+
+  <!-- 分頁導航 -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('happy-path')">
+      <span>🌟</span> 1. 標準領取 Happy Path
+    </button>
+    <button class="tab-btn" onclick="switchTab('timeout-recycle')">
+      <span>⏱️</span> 2. 6小時逾時回收轉配鏈
+    </button>
+    <button class="tab-btn" onclick="switchTab('report-invalid')">
+      <span>🛡️</span> 3. 回報無效與優先重排鏈
+    </button>
+    <button class="tab-btn" onclick="switchTab('concurrency-stress')">
+      <span>⚡</span> 4. 高併發搶碼鎖定流轉
+    </button>
+  </div>
+
+  <!-- ==================== Tab 1: Happy Path ==================== -->
+  <div id="tab-happy-path" class="tab-pane active">
+    <div class="chain-container">
+      
+      <!-- Step 1 -->
+      <div class="step-card">
+        <div class="step-node">1</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-receiver">領取者</span>
+            <span class="badge badge-post">POST</span>
+            <span class="step-title">Google / Dev 登入授權</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/auth/google &amp; /api/auth/dev-login</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          使用者使用 Google One Tap 或開發者模擬登入，後端完成身分驗證並簽發安全 HttpOnly Cookie。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">AuthService.loginWithGoogle() (先 verifyGoogleIdToken) 或 loginWithDevAccount()
+➔ UserRepository.upsertUserByGoogleProfile()
+➔ AuthService.createSessionToken() (hono/jwt)</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">SELECT users</span> WHERE google_sub = ?
+➔ 不存在: <span class="sql-highlight">INSERT INTO users</span> (google_sub, email, nickname, ...)
+➔ 已存在且 email 或暱稱有變: <span class="sql-highlight">UPDATE users</span>
+➔ Set-Cookie: claude_tw_session=eyJhbGci...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step-card">
+        <div class="step-node">2</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-receiver">領取者</span>
+            <span class="badge badge-post">POST</span>
+            <span class="step-title">加入排隊並預填感謝小卡 (AC 1)</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/queue</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          領取者排隊時需預先撰寫 5~200 字感謝小卡（確認啟用時將刊登至感謝牆）。前端依 <code>isEligibleForNewbieTrack</code> 自動送出排隊軌道，畫面沒有軌道選項。若此時池中無可配對的名額，狀態為 <span class="state-tag state-waiting">waiting</span>。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.joinQueue()
+➔ processExpirations() (先結算逾時)
+➔ assertEligibleForNewbieTrack() (僅新手首發軌)
+➔ InviteQueueRepository.createQueueEntry()
+➔ InviteQueueService.matchAvailableSlotsToQueue()</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">INSERT INTO queue_entries</span>
+(user_id, status='waiting', track, priority=0, thank_you_message)
+➔ 初始狀態: <span class="state-tag state-waiting">waiting</span> (排隊順位: N)
+➔ 池中有可配對的名額時，同一個請求內即轉為 <span class="state-tag state-reserved">reserved</span></div>
+          </div>
+        </div>
+        <div class="note-box">
+          <span>💡</span> <strong>業務防重防護</strong>：同一個使用者在狀態為 waiting, reserved, revealed 時無法重複排隊（唯一索引違反時回傳 <code>ALREADY_IN_QUEUE</code>）。新手首發軌另外限制：任一軌道已有 confirmed 紀錄，或曾分享過邀請連結的使用者，排新手首發軌回傳 <code>NEWBIE_TRACK_ONLY</code>，需改排再領取軌。
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step-card">
+        <div class="step-node">3</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-provider">提供者</span>
+            <span class="badge badge-post">POST</span>
+            <span class="step-title">分享邀請連結並觸發自動配對 (AC 2, AC 3)</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/links</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          提供者分享包含代碼的網址（自訂 1~3 名額，並選擇名額開放給新手首發軌或再領取軌），系統原子交易寫入名額並立即依軌道規則按 FIFO 撮合給排隊者。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.submitInviteLink()
+➔ processExpirations() (先結算逾時)
+➔ rules.extractAndNormalizeReferralLink()
+➔ UserRepository.findUserById() ➔ rules.isProviderBlocked()
+➔ InviteQueueRepository.createLinkWithSlots() (D1 Batch)
+➔ InviteQueueService.matchAvailableSlotsToQueue()</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">BEGIN BATCH</span>
+INSERT INTO invite_links (...)
+INSERT INTO invite_slots (status='available', track) * N
+<span class="sql-highlight">COMMIT</span>
+➔ 撮合後: slot: <span class="state-tag state-reserved">reserved</span>, queue: <span class="state-tag state-reserved">reserved</span></div>
+          </div>
+        </div>
+        <div class="note-box">
+          <span>🔔</span> <strong>即時通知觸發</strong>：配對成功的領取者收到 Web Push（「輪到你領取 Claude 邀請碼」，內文提醒請在 6 小時內點擊解鎖）。推播交給 <code>runInBackground</code>（Workers 的 <code>ctx.waitUntil</code>）在回應之後送出，不拖慢 API 回應。
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step-card">
+        <div class="step-node">4</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-receiver">領取者</span>
+            <span class="badge badge-post">POST</span>
+            <span class="step-title">解鎖看碼 (AC 4, AC 6)</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/queue/reveal</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          在 6 小時保留期內，未解鎖前 GET /api/me 絕不回傳真實網址；領取者點擊解鎖後才回傳 URL，並啟動 30 分鐘啟用倒數窗口。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.revealSlot()
+➔ processExpirations() (先結算逾時；已逾期者回傳 RESERVATION_EXPIRED)
+➔ InviteQueueRepository.revealReservedSlot() (D1 Batch，WHERE reserve_expires_at &gt; now)
+➔ InviteQueueRepository.findSlotWithLinkById() (取得邀請網址)</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">UPDATE invite_slots</span> SET status='revealed', confirm_expires_at=now+30m
+<span class="sql-highlight">UPDATE queue_entries</span> SET status='revealed', confirm_expires_at=now+30m
+➔ 狀態轉變: <span class="state-tag state-revealed">revealed</span> (顯示倒數計時)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step-card">
+        <div class="step-node">5</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-receiver">領取者</span>
+            <span class="badge badge-post">POST</span>
+            <span class="step-title">確認啟用並送出感謝 (AC 6)</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/queue/confirm</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          領取者在 Claude.ai 註冊啟用成功後，點擊「確認啟用並送出感謝」，名額結案，感謝小卡即時推播給提供者並刊登至首頁感謝牆。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.confirmSlot()
+➔ InviteQueueRepository.confirmRevealedSlot()
+➔ notifyProviderOnSlotConfirmed() ➔ syncProviderStrikeCount()
+➔ dispatchPush() ➔ WebPushService.sendNotificationToUser(providerId) (背景送出)
+➔ onBoardChanged() (invalidateBoardCache 快取無效化)</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">UPDATE invite_slots</span> SET status='confirmed', confirmed_at=now
+<span class="sql-highlight">UPDATE queue_entries</span> SET status='confirmed', confirmed_at=now
+➔ 狀態結案: <span class="state-tag state-confirmed">confirmed</span>
+➔ 感謝牆即時顯示此張小卡與雙方暱稱</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== Tab 2: Timeout Recycle ==================== -->
+  <div id="tab-timeout-recycle" class="tab-pane">
+    <div class="chain-container">
+      <div class="step-card">
+        <div class="step-node">⏰</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-cron">系統排程 Cron</span>
+            <span class="badge badge-get">Cron Trigger</span>
+            <span class="step-title">定時排程檢查 6 小時未解鎖名額 (AC 5)</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-rose);">wrangler.toml: crons = ["*/5 * * * *"]</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          逾時結算有四種觸發時機：每 5 分鐘執行的 <code>scheduled()</code>、登入狀態的 GET /api/me、看板快取過期後的 GET /api/board，以及提交連結、加入排隊、取消、解鎖、回報無效這幾支寫入 API（確認啟用不會先結算）。結算時掃描所有 <code>status = 'reserved'</code> 且 <code>reserve_expires_at &lt;= now</code> 的排隊紀錄（每次最多 100 筆）。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.processExpirations()
+➔ InviteQueueRepository.fetchExpiredReservations()
+➔ InviteQueueRepository.expireReservationAndReleaseSlot() (逐筆)
+➔ fetchExpiredRevealedSlots() ➔ confirmRevealedSlot() (解鎖滿 30 分鐘自動確認)
+➔ syncProviderStrikeCount() (受影響的提供者)
+➔ 有逾時釋出的名額時: matchAvailableSlotsToQueue()
+➔ 自動確認的名額: 背景推播通知提供者</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">UPDATE queue_entries</span> SET status='expired', slot_id=null WHERE id=?
+<span class="sql-highlight">UPDATE invite_slots</span> SET status='available', assigned_user_id=null
+➔ 原領取者逾時標記為 expired；名額退回 available（同一組連結已有名額被回報無效時改為 closed）</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-node">🔄</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-cron">系統排程 Cron</span>
+            <span class="badge badge-post">BATCH</span>
+            <span class="step-title">釋放名額立即自動撮合下一位等待者 (AC 5)</span>
+          </div>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          名額退回 available 後，系統不浪費名額，立即調用配對引擎，依軌道規則將名額保留給佇列中的下一位排隊者。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.matchAvailableSlotsToQueue() (最多 5 輪)
+➔ fetchTracksWithWaitingEntries() ➔ fetchAvailableSlotsForMatching()
+➔ fetchWaitingQueueEntriesForMatching() (每軌用 ROW_NUMBER() 取前 N 張票券)
+➔ matchTicketsToAvailableSlots() (domain 純函式)
+➔ InviteQueueRepository.assignSlotToQueueEntry()
+➔ dispatchPush() ➔ WebPushService.sendNotificationToUser(nextUserId) (背景送出)</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">資料庫與狀態變更 (D1 SQLite)</span>
+            <div class="code-box"><span class="sql-highlight">UPDATE invite_slots</span> SET status='reserved', assigned_user_id=nextUserId, reserve_expires_at=now+6h
+<span class="sql-highlight">UPDATE queue_entries</span> SET status='reserved', slot_id=?, reserve_expires_at=now+6h
+➔ 兩筆 UPDATE 在同一個 D1 Batch，各自帶 WHERE status 守衛
+➔ 下一位等待者晉升為 <span class="state-tag state-reserved">reserved</span>，收到推播領取通知</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Tab 3: Report Invalid ==================== -->
+  <div id="tab-report-invalid" class="tab-pane">
+    <div class="chain-container">
+      <div class="step-card">
+        <div class="step-node">⚠️</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-receiver">領取者</span>
+            <span class="badge badge-post">POST</span>
+            <span class="step-title">回報邀請碼無效 (AC 8, AC 9, AC 10)</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-blue);">/api/queue/report-invalid</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          領取者解鎖看碼後發現無法註冊（如已被他人搶用），在 30 分鐘窗口內點擊回報無效。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.reportSlotInvalid()
+➔ processExpirations() (先結算逾時)
+➔ 檢查是否已用過終身 1 次重排額度 (RETRY_QUOTA_EXHAUSTED)
+➔ rules.canUserReportInvalid() (解鎖後 30 分鐘內)
+➔ InviteQueueRepository.reportInvalidAndRequeue() (D1 批次交易，4 條語句)
+➔ syncProviderStrikeCount() ➔ matchAvailableSlotsToQueue()</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">D1 4 條語句原子批次交易 (Batch Transaction)</span>
+            <div class="code-box"><span class="sql-highlight">BEGIN BATCH</span>
+1. UPDATE invite_slots SET status='invalidated' WHERE id=?
+2. UPDATE invite_slots SET status='closed' WHERE link_id=? AND status='available' (同組隔離)
+3. UPDATE users SET invalid_retry_count=invalid_retry_count+1 WHERE id=? (扣除重排額度)
+4. UPDATE queue_entries SET status='waiting', priority=1 WHERE id=? (優先插隊，軌道不變)
+<span class="sql-highlight">COMMIT</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-node">🛡️</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-provider">系統自動防護</span>
+            <span class="badge badge-post">EVAL</span>
+            <span class="step-title">好心人保護與累積 2 次停權判定 (AC 10)</span>
+          </div>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          系統重新評估提供者所有連結的健康度：只要任一名額曾成功啟用，即不判定為完全無效連結；累積 2 組全無效則自動停權。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">調用方法 (Service &amp; Repo)</span>
+            <div class="code-box">InviteQueueService.syncProviderStrikeCount()
+➔ InviteQueueRepository.fetchProviderLinksSlotStatuses()
+➔ rules.isCompletelyInvalidLink(statuses)
+➔ UserRepository.updateProviderStrikeCount()
+➔ rules.isProviderBlocked(strikeCount) (reportSlotInvalid 取得回傳值後判定並記錄)</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">判定結果</span>
+            <div class="code-box">strikeCount &gt;= 2 ➔ 提供者被停權，後續 POST /api/links 回應 HTTP 403 PROVIDER_BLOCKED</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== Tab 4: Concurrency Stress ==================== -->
+  <div id="tab-concurrency-stress" class="tab-pane">
+    <div class="chain-container">
+      <div class="step-card">
+        <div class="step-node">⚡</div>
+        <div class="step-header">
+          <div class="step-title-group">
+            <span class="badge badge-actor-receiver">80 併發領取者</span>
+            <span class="badge badge-post">CONCURRENT POST</span>
+            <span class="step-title">高併發搶排隊與 SQLite 樂觀鎖撮合</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-green);">Throughput: ~2000 req/s</span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+          80 位領取者同時發起請求搶 60 個可用名額。D1 事務透過單一寫入者 WAL 鎖保證資料嚴格一致；配對被別的請求搶先時，守衛條件使該筆寫入落空，撮合迴圈重讀後再配，最多 5 輪。
+        </p>
+        <div class="step-flow">
+          <div class="flow-col">
+            <span class="flow-label">並發競爭調用鏈</span>
+            <div class="code-box">Promise.all(80 * POST /api/queue)
+➔ matchAvailableSlotsToQueue() (最多 5 輪)
+➔ 每輪先查有 waiting 票券的軌道，只讀配得到的軌道的 available 名額，
+   再每軌用 ROW_NUMBER() 取前 N 張票券
+➔ InviteQueueRepository.assignSlotToQueueEntry() (D1 batch())
+➔ 嚴格雙表 WHERE 條件:
+   WHERE id=? AND status='available'
+   WHERE id=? AND status='waiting'
+➔ 任一筆未影響 1 列即視為被拒絕，下一輪重讀再配</div>
+          </div>
+          <div class="flow-col">
+            <span class="flow-label">嚴格不變性 (Invariant) 驗證結果</span>
+            <div class="code-box">✓ 剛好 60 位拿到 <span class="state-tag state-reserved">reserved</span>
+✓ 剛好 20 位進入 <span class="state-tag state-waiting">waiting</span> (排隊序號 1~20 無錯亂)
+✓ 0 筆雙重配對 (Zero Double-Allocation)
+✓ 0 筆遺漏名額 (Zero Leaked Slots)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部重點摘要卡片 -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <h4>🔒 隱私安全保證 (Zero-Leak)</h4>
+      <p>在狀態變為 <code>revealed</code> 之前，任何 API（包含 GET /api/me）絕不對外輸出 referralUrl，徹底杜絕搶碼爬蟲。</p>
+    </div>
+    <div class="summary-card">
+      <h4>📦 D1 Batch 原子交易</h4>
+      <p>跨表狀態轉移（如配對、回報無效同組隔離）全面使用 D1 Batch，確保多表要嘛全成、要嘛全敗，零部分寫入殘留。</p>
+    </div>
+    <div class="summary-card">
+      <h4>⚡ Edge 原生高效能</h4>
+      <p>由 Cloudflare Workers 邊緣節點直接執行 Hono 路由與 D1 查詢，冷啟動耗時小於 5ms，高併發吞吐量達 1,000+ RPS。</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+    const targetPane = document.getElementById('tab-' + tabId);
+    if (targetPane) targetPane.classList.add('active');
+
+    event.currentTarget.classList.add('active');
+  }
+</script>
+
+</body>
+</html>

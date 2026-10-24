@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="340" viewBox="0 0 340 340" role="img" aria-label="Claude Taiwan mascot icon">
+  <title>Claude Taiwan mascot icon</title>
+  <!-- Square app icon: the mascot rebuilt as rects from the supplied 267x202 PNG, centered on the app's cream background.
+       Its far corners sit 130.2 units from the center, inside the 136 radius (40% of 340) that Android's maskable crop is guaranteed to keep. -->
+  <rect width="340" height="340" fill="#faf7f2"/>
+
+  <g transform="translate(38 70.5)" shape-rendering="crispEdges">
+    <g fill="#db7759">
+      <rect x="60.28" y="26.5" width="147.27" height="107"/>
+      <rect x="24.18" y="61.75" width="215.66" height="35.88"/>
+      <rect x="60.28" y="133.47" width="17.58" height="39"/>
+      <rect x="96.4" y="133.47" width="17.93" height="39"/>
+      <rect x="150.7" y="133.47" width="17.68" height="39"/>
+      <rect x="187.08" y="133.47" width="20.47" height="39"/>
+    </g>
+
+    <g fill="#000000">
+      <rect x="79.1" y="42.9" width="18.3" height="18.4"/>
+      <rect x="168.9" y="42.9" width="18.3" height="18.4"/>
+    </g>
+  </g>
+</svg>

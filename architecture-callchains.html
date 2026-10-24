@@ -1,0 +1,1960 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Taiwan 邀請碼排隊系統 — 系統分層架構與全 API 調用鏈視覺化 (Architecture & API Call Chains)</title>
+  <style>
+    :root {
+      --bg-primary: #090d16;
+      --bg-secondary: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-hover: #24344d;
+      --bg-pill: #334155;
+      --border-color: #334155;
+      --border-accent: #38bdf8;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-purple: #c084fc;
+      --accent-amber: #fbbf24;
+      --accent-rose: #fb7185;
+      --accent-indigo: #818cf8;
+      --accent-cyan: #22d3ee;
+
+      --method-get: #38bdf8;
+      --method-post: #34d399;
+      --method-delete: #fb7185;
+
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      padding: 2rem 1.5rem 5rem 1.5rem;
+    }
+
+    header {
+      max-width: 1280px;
+      margin: 0 auto 2.5rem auto;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1.5rem;
+    }
+
+    .badge-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-blue { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-green { background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-purple { background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); border: 1px solid rgba(192, 132, 252, 0.3); }
+    .badge-amber { background: rgba(251, 191, 36, 0.15); color: var(--accent-amber); border: 1px solid rgba(251, 191, 36, 0.3); }
+    .badge-rose { background: rgba(251, 113, 133, 0.15); color: var(--accent-rose); border: 1px solid rgba(251, 113, 133, 0.3); }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #f8fafc 0%, #38bdf8 50%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 900px;
+    }
+
+    /* Tab navigation */
+    .nav-tabs {
+      max-width: 1280px;
+      margin: 0 auto 2rem auto;
+      display: flex;
+      gap: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.6rem 1.25rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+      background: var(--bg-secondary);
+      color: var(--text-main);
+      border-color: var(--accent-blue);
+    }
+
+    .tab-btn.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Layer Architecture View */
+    .arch-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .arch-layer {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .arch-layer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+    }
+
+    .arch-layer.layer-client::before { background: var(--accent-cyan); }
+    .arch-layer.layer-api::before { background: var(--accent-blue); }
+    .arch-layer.layer-service::before { background: var(--accent-purple); }
+    .arch-layer.layer-domain::before { background: var(--accent-amber); }
+    .arch-layer.layer-data::before { background: var(--accent-green); }
+    .arch-layer.layer-infra::before { background: var(--accent-rose); }
+
+    .layer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1rem;
+    }
+
+    .layer-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .layer-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .component-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .comp-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .comp-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-blue);
+      background: var(--bg-card-hover);
+    }
+
+    .comp-name {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--accent-blue);
+      margin-bottom: 0.35rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .comp-detail {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .comp-tag {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.4rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      color: var(--text-main);
+    }
+
+    /* API Filter & Controls */
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+      background: var(--bg-pill);
+      color: var(--text-main);
+      border-color: var(--accent-blue);
+    }
+
+    .search-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 240px;
+    }
+
+    .search-box:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    /* API Call Chain Card */
+    .api-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      margin-bottom: 1.75rem;
+      overflow: hidden;
+      transition: border-color 0.2s ease;
+    }
+
+    .api-card:hover {
+      border-color: #475569;
+    }
+
+    .api-header {
+      padding: 1.25rem 1.5rem;
+      background: rgba(30, 41, 59, 0.7);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    }
+
+    .api-identity {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .method-tag {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 800;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    .method-get { background: rgba(56, 189, 248, 0.2); color: var(--method-get); }
+    .method-post { background: rgba(52, 211, 153, 0.2); color: var(--method-post); }
+    .method-delete { background: rgba(251, 113, 133, 0.2); color: var(--method-delete); }
+
+    .api-endpoint {
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .api-summary {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-left: 0.5rem;
+    }
+
+    .api-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .api-body {
+      padding: 1.5rem;
+    }
+
+    /* Flow Sequence Nodes */
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin: 1.25rem 0;
+      position: relative;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.9rem 1.2rem;
+      position: relative;
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: "↓";
+      position: absolute;
+      bottom: -18px;
+      left: 70px;
+      font-weight: 800;
+      color: var(--accent-blue);
+      font-size: 0.9rem;
+      z-index: 2;
+    }
+
+    .step-source {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .step-layer {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .layer-lbl-client { color: var(--accent-cyan); }
+    .layer-lbl-middleware { color: var(--accent-blue); }
+    .layer-lbl-service { color: var(--accent-purple); }
+    .layer-lbl-domain { color: var(--accent-amber); }
+    .layer-lbl-repo { color: var(--accent-green); }
+    .layer-lbl-d1 { color: var(--accent-rose); }
+
+    .step-actor {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .step-desc {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.9rem;
+    }
+
+    .code-symbol {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-blue);
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .domain-symbol {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-amber);
+      background: rgba(251, 191, 36, 0.1);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .repo-symbol {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent-green);
+      background: rgba(52, 211, 153, 0.1);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      display: inline-block;
+      width: fit-content;
+    }
+
+    .step-note {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* Specs Grid inside API card */
+    .specs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .spec-block {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+    }
+
+    .spec-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 0.35rem;
+    }
+
+    .spec-val {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    .side-effect-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      margin-right: 0.3rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .se-push { background: rgba(192, 132, 252, 0.15); color: var(--accent-purple); }
+    .se-cache { background: rgba(56, 189, 248, 0.15); color: var(--accent-blue); }
+    .se-strike { background: rgba(251, 113, 133, 0.15); color: var(--accent-rose); }
+    .se-engine { background: rgba(251, 191, 36, 0.15); color: var(--accent-amber); }
+
+    /* Interactive state machine section */
+    .state-flow-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .state-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent-blue);
+      margin-bottom: 0.5rem;
+    }
+
+    .state-diagram-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: var(--text-main);
+      overflow-x: auto;
+    }
+
+    footer {
+      max-width: 1280px;
+      margin: 3rem auto 0 auto;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border-color);
+      padding-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="badge-bar">
+      <span class="badge badge-blue">Cloudflare Workers + D1</span>
+      <span class="badge badge-green">Drizzle ORM (users / push)</span>
+      <span class="badge badge-amber">Pure Matching Engine</span>
+      <span class="badge badge-purple">Web Push Notification</span>
+      <span class="badge badge-rose">Actor DSL Testing</span>
+    </div>
+    <h1>系統整體分層架構與全 API 調用鏈視覺化</h1>
+    <p class="subtitle">
+      涵蓋 Claude Taiwan 邀請碼排隊系統 13 支 API 完整生命週期：從 HTTP Request、Hono 中介層校驗、應用服務、純領域撮合引擎（無模糊 entity）、Repository 資料存取（全部用 Drizzle 查詢建構器，只有 5 個 `sql` 片段）到 D1 SQLite 實體寫入與背景推播副作用。
+    </p>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('arch-tab')">
+      整體分層架構 (Architecture Layers)
+    </button>
+    <button class="tab-btn" onclick="switchTab('api-tab')">
+      全部 13 支 API Call Chain 矩陣
+    </button>
+    <button class="tab-btn" onclick="switchTab('lifecycle-tab')">
+      狀態機與定時流轉週期 (Lifecycle & Expirations)
+    </button>
+    <button class="tab-btn" onclick="switchTab('mermaid-tab')">
+      Mermaid 視覺化互動流程圖 (Mermaid Diagrams)
+    </button>
+  </div>
+
+  <div class="container">
+
+    <!-- TAB 1: ARCHITECTURE LAYERS -->
+    <div id="arch-tab" class="tab-panel active">
+      <div class="arch-grid">
+
+        <!-- Layer 1: Client -->
+        <div class="arch-layer layer-client">
+          <div class="layer-header">
+            <div class="layer-title">
+              <span>🖥️</span> 表現層 / 前端客戶端 (Client Layer)
+            </div>
+            <div class="layer-desc">React 19 + 原生 CSS Variables (零 Tailwind) + PWA Web Push</div>
+          </div>
+          <div class="component-cards">
+            <div class="comp-card">
+              <div class="comp-name">App.tsx <span class="comp-tag">Entry</span></div>
+              <div class="comp-detail">看板統計、提供者面板、領取者面板與感謝牆之根元件組合。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">useInviteApp.ts <span class="comp-tag">ViewModel</span></div>
+              <div class="comp-detail">管理登入狀態、看板與個人狀態載入（開啟頁面、動作完成與下拉重整時重抓，沒有背景輪詢）、表單輸入與回報無效確認彈窗；排隊軌道依 <code>isEligibleForNewbieTrack</code> 自動帶入。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">apiClient.ts <span class="comp-tag">Transport</span></div>
+              <div class="comp-detail">封裝 Fetch API、自動攜帶 Cookie 憑證，並把錯誤回應統整成 <code>ApiClientError</code>（含業務錯誤碼）。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">webPushSubscription.ts <span class="comp-tag">PWA Push</span></div>
+              <div class="comp-detail">請求通知權限，等 ServiceWorker ready（<code>main.tsx</code> 註冊 <code>sw.js</code>）後，把 VAPID 公鑰轉成 applicationServerKey 並透過 PushManager 訂閱；失敗時回傳 <code>null</code>。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">googleIdToken.ts <span class="comp-tag">Login</span></div>
+              <div class="comp-detail">載入 Google Identity Services 且設定正式 Client ID 時取得真實 credential，否則改用依暱稱產生的展示用 token。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">browserEnvironment.ts <span class="comp-tag">Env Detect</span></div>
+              <div class="comp-detail">偵測社群軟體內建瀏覽器（Facebook、LINE 等）與是否以獨立 PWA 視窗執行。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 2: API & Middleware -->
+        <div class="arch-layer layer-api">
+          <div class="layer-header">
+            <div class="layer-title">
+              <span>🛡️</span> 接入與中介層 (API Gateway & Middleware Layer)
+            </div>
+            <div class="layer-desc">Hono v4 輕量路由 + 安全防護標頭 + Zod 輸入強驗證</div>
+          </div>
+          <div class="component-cards">
+            <div class="comp-card">
+              <div class="comp-name">secureHeaders() <span class="comp-tag">Security</span></div>
+              <div class="comp-detail">對 <code>/api/*</code> 注入 HSTS, X-Frame-Options (SAMEORIGIN), X-Content-Type-Options (nosniff) 與 Referrer-Policy (no-referrer)，皆為 Hono 預設值。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">Session 中介層 <span class="comp-tag">Auth</span></div>
+              <div class="comp-detail"><code>app.use('/api/*')</code> 每個請求建立一次 <code>createServices()</code>，解析 <code>claude_tw_session</code> JWT Cookie 並把 <code>userId</code>（未登入或驗證失敗為 <code>null</code>）放進 Context；需要登入的路由再由 <code>requireUserId()</code> 回傳 401。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">zValidator() <span class="comp-tag">Validation</span></div>
+              <div class="comp-detail">Zod 綱要檢查（感謝小卡長度 5~200 字、名額 1~3、軌道 newbie／community、推播訂閱欄位），失敗回傳 422 <code>VALIDATION_ERROR</code>；登入相關欄位失敗回傳 400 <code>INVALID_INPUT</code>。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">app.onError() <span class="comp-tag">Error Boundary</span></div>
+              <div class="comp-detail">統一捕捉業務 AppError 並轉成 <code>{ error: { code, message } }</code>；非預期錯誤只回傳通用的 500 <code>INTERNAL_ERROR</code>，細節寫入 log，不洩漏給使用者。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 3: Application Services & CQRS Queries -->
+        <div class="arch-layer layer-service">
+          <div class="layer-header">
+            <div class="layer-title">
+              <span>⚙️</span> 應用服務層 (Application Services & CQRS)
+            </div>
+            <div class="layer-desc">業務流程編排、跨實體事務控制與讀寫分離投影</div>
+          </div>
+          <div class="component-cards">
+            <div class="comp-card">
+              <div class="comp-name">inviteQueueService.ts <span class="comp-tag">Service</span></div>
+              <div class="comp-detail">處理分享、排隊、取消、解鎖看碼、確認啟用、無效回報隔離與逾時結算（<code>processExpirations</code>），並編排撮合迴圈（<code>matchAvailableSlotsToQueue</code>）；推播交給 <code>runInBackground</code>（Workers 的 <code>ctx.waitUntil</code>）送出。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">authService.ts <span class="comp-tag">Service</span></div>
+              <div class="comp-detail">Google ID Token 驗證、開發者模擬登入與 30 天效期 JWT Session 簽發。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">webPushService.ts <span class="comp-tag">Push Service</span></div>
+              <div class="comp-detail">VAPID 簽章與 aes128gcm 酬載加密、推播送出；遇 404 或 410 自動刪除失效訂閱，單一裝置送出失敗只記錄、不影響資料狀態。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">boardQuery.ts、meQuery.ts <span class="comp-tag">CQRS Read</span></div>
+              <div class="comp-detail">boardQuery 負責 15 秒記憶體快取與快取失效並組裝公開看板，meQuery 組裝 <code>/api/me</code> 的 DTO；看板快取過期時，由 <code>/api/board</code> 路由先呼叫逾時結算。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 4: Domain Core (No Entity Naming!) -->
+        <div class="arch-layer layer-domain">
+          <div class="layer-header">
+            <div class="layer-title">
+              <span>🧠</span> 領域核心層 (Pure Domain Logic - Intent-Revealing)
+            </div>
+            <div class="layer-desc">純函式、零 I/O 依賴、揚棄模糊 entity 泛稱，貫徹統一語言</div>
+          </div>
+          <div class="component-cards">
+            <div class="comp-card">
+              <div class="comp-name">matchingEngine.ts <span class="comp-tag">Pure Domain</span></div>
+              <div class="comp-detail">
+                <code>matchTicketsToAvailableSlots(availableSlots, waitingTickets)</code><br>
+                輸入 <strong>AvailableSlot[]</strong> 與 <strong>WaitingTicket[]</strong>，依 FIFO 撮合，強制排除提供者自己。newbie 名額只配新手票券；community 名額先配 community 票券，沒有時才退而配新手票券。<code>slotTracksMatchableBy()</code> 回傳目前有等候票券的軌道配得到的名額軌道。
+              </div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">rules.ts (Referral) <span class="comp-tag">Domain Rule</span></div>
+              <div class="comp-detail">
+                <code>extractAndNormalizeReferralLink()</code><br>
+                自雜亂文字中萃取 Claude 邀請代碼，消除 <code>?s=ios</code> 等追蹤參數以保證唯一性。
+              </div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">rules.ts (Strikes) <span class="comp-tag">Domain Rule</span></div>
+              <div class="comp-detail">
+                <code>isCompletelyInvalidLink()</code> & <code>isProviderBlocked()</code><br>
+                提供者好心人保護機制：連結只要有 1 個名額確認啟用即不計違規；累計 2 次完全無效始停權。
+              </div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">rules.ts (Newbie Track) <span class="comp-tag">Domain Rule</span></div>
+              <div class="comp-detail">
+                <code>isEligibleForNewbieTrack()</code><br>
+                任一軌道沒有 confirmed 領取紀錄，且沒有分享過邀請連結，才具備新手首發軌資格；回報無效後的重排次數不影響資格。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 5: Data Access (Repositories) -->
+        <div class="arch-layer layer-data">
+          <div class="layer-header">
+            <div class="layer-title">
+              <span>🗄️</span> 資料存取層 (Data Access & Repositories)
+            </div>
+            <div class="layer-desc">全部資料表都用 Drizzle ORM 型別安全查詢，寫入端由職責拆分的 Repository 封裝，唯讀查詢在 queries 層直接用 Drizzle</div>
+          </div>
+          <div class="component-cards">
+            <div class="comp-card">
+              <div class="comp-name">schema.ts <span class="comp-tag">Drizzle Schema</span></div>
+              <div class="comp-detail">定義全部 5 張資料表（含 CHECK 與 partial unique index）。資料表仍由 <code>migrations/</code> 的 SQL 建立，<code>tests/integration/schemaDrift.test.ts</code> 逐項驗證 schema.ts 與資料庫沒有漂移。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">userRepository.ts <span class="comp-tag">Drizzle Repo</span></div>
+              <div class="comp-detail">使用者查詢、Profile Upsert、暱稱更新與提供者違規計數 (<code>invalid_link_strike_count</code>) 更新；無效重排次數 (<code>invalid_retry_count</code>) 由 <code>inviteQueueRepository.ts</code> 的回報無效批次交易遞增。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">pushSubscriptionRepository.ts <span class="comp-tag">Drizzle Repo</span></div>
+              <div class="comp-detail">Web Push 憑證 Upsert、依使用者查詢訂閱與失效端點刪除。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">inviteQueueRepository.ts <span class="comp-tag">Repository</span></div>
+              <div class="comp-detail">Slot/Queue 原子性交易指派、名額保留鎖定與同連結名額隔離關閉；撮合候選查詢先找有 waiting 票券的軌道，只讀配得到的軌道的名額，每軌用 <code>ROW_NUMBER()</code> 取前 N 張票券。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Layer 6: Infrastructure -->
+        <div class="arch-layer layer-infra">
+          <div class="layer-header">
+            <div class="layer-title">
+              <span>☁️</span> 基礎設施與儲存 (Infrastructure & D1 Storage)
+            </div>
+            <div class="layer-desc">Cloudflare 邊緣環境與 SQLite 分散式資料庫</div>
+          </div>
+          <div class="component-cards">
+            <div class="comp-card">
+              <div class="comp-name">Cloudflare D1 <span class="comp-tag">Database</span></div>
+              <div class="comp-detail">基於 SQLite 的邊緣資料庫，支援外鍵限制與批次交易 (Batch Transaction)。</div>
+            </div>
+            <div class="comp-card">
+              <div class="comp-name">testD1.ts & testActor.ts <span class="comp-tag">Test Infra</span></div>
+              <div class="comp-detail">記憶體 SQLite D1 模擬器與語意化 Actor DSL，消除千行測試樣板。</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: ALL 13 API CALL CHAINS -->
+    <div id="api-tab" class="tab-panel">
+
+      <div class="filter-bar">
+        <div class="filter-group">
+          <button class="filter-btn active" onclick="filterApis('all')">全部 (13)</button>
+          <button class="filter-btn" onclick="filterApis('receiver')">領取者流程 (5)</button>
+          <button class="filter-btn" onclick="filterApis('provider')">提供者流程 (1)</button>
+          <button class="filter-btn" onclick="filterApis('auth')">認證與個人 (4)</button>
+          <button class="filter-btn" onclick="filterApis('public')">看板與推播 (3)</button>
+        </div>
+        <input type="text" id="api-search" class="search-box" placeholder="搜尋 API 或路徑..." oninput="searchApis()">
+      </div>
+
+      <div id="api-list">
+
+        <!-- 1. GET /api/board -->
+        <div class="api-card" data-category="public" data-name="get /api/board 公開看板">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-get">GET</span>
+              <span class="api-endpoint">/api/board</span>
+              <span class="api-summary">公開看板與最新感謝牆</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-green">公開 (免登入)</span>
+              <span class="badge badge-blue">15s Cache</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-client">Client</span>
+                  <span class="step-actor">useInviteApp</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">apiClient.fetchBoard()</span>
+                  <span class="step-note">首頁載入、動作完成與下拉重整時，由 <code>refreshAll()</code> 與 <code>fetchMe()</code> 一起重抓；前端沒有背景輪詢。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">Hono Router</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">secureHeaders() → logger() → createServices()</span>
+                  <span class="step-note">注入安全標頭並記錄請求；每個請求只建立一次 services，並帶入 <code>runInBackground</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">isBoardCacheFresh(now) → processExpirations(now) [延遲結算]</span>
+                  <span class="step-note">路由先檢查看板快取。快取已過期才觸發結算：回收 6 小時逾時未看碼的名額（退回池或自動重配）並自動確認解鎖滿 30 分鐘的名額；快取仍新鮮就略過。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Query Layer</span>
+                  <span class="step-actor">boardQuery.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">fetchBoardDto(db, now)</span>
+                  <span class="step-note">快取在 15 秒內就直接回傳；否則重新查詢 D1（同時間的多個請求共用同一次查詢）並寫回快取，大幅減輕 D1 查詢負擔。回應帶 <code>Cache-Control: public, max-age=15</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-d1">D1 Database</span>
+                  <span class="step-actor">invite_slots / queue_entries</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">SELECT COUNT(*) ... GROUP BY track & SELECT thankYouWall LIMIT 30</span>
+                  <span class="step-note">依軌道聚合可用名額數、等待人數與最新 30 筆感謝卡片，並快取 15 秒；累計領取數另以 10 分鐘的獨立快取計算，避免每次重算都掃全部已確認席次。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">BoardDto: { availableSlotsCount, waitingQueueCount, totalConfirmedCount, newbieSlotsCount, communitySlotsCount, newbieQueueCount, communityQueueCount, thankYouWall[] }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="spec-val">
+                  <span class="side-effect-item se-cache">Memory Cache (15s)</span>
+                  <span class="side-effect-item se-engine">Lazy Expirations</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. GET /api/me -->
+        <div class="api-card" data-category="auth" data-name="get /api/me 個人狀態">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-get">GET</span>
+              <span class="api-endpoint">/api/me</span>
+              <span class="api-summary">取得個人排隊狀態、分享紀錄與 VAPID 金鑰</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">登入選填 (Cookie)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-client">Client</span>
+                  <span class="step-actor">useInviteApp</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">apiClient.fetchMe()</span>
+                  <span class="step-note">取得個人排隊位置、倒數 Timer、分享連結與推播訂閱狀態；<code>isEligibleForNewbieTrack</code> 決定前端排隊時送出的軌道。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">Session 中介層</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">verifySessionToken(cookie)</span>
+                  <span class="step-note">解析 JWT Cookie。沒有 Cookie 或驗證失敗時 <code>userId</code> 為 <code>null</code>，此路由回傳匿名狀態（<code>user: null</code>），不會回傳 401。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">processExpirations(now)</span>
+                  <span class="step-note">已登入時優先處理逾時狀態，確保讀取到的個人狀態絕對即時準確。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Query Layer</span>
+                  <span class="step-actor">meQuery.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">fetchMeDto(d1, userId, serverConfig, now)</span>
+                  <span class="step-note">
+                    1. 並行讀取使用者個人 Profile、違規記點與推播訂閱狀態。<br>
+                    2. 查詢最近一筆排隊紀錄 <code>myQueue</code>：若為 <code>reserved</code> 則隱蔽 referralUrl (防偷看碼)；若為 <code>revealed</code> 或 <code>confirmed</code> 則回傳正規化邀請網址，<code>revealed</code> 另帶 30 分鐘倒數。<br>
+                    3. 動態計算排隊即時順位 <code>queuePosition</code>，所有軌道合併排序 (依優先權 priority、created_at 與 id)。<br>
+                    4. 讀取最近一筆已確認的領取紀錄 <code>myConfirmedClaim</code>，並以它和分享紀錄算出 <code>isEligibleForNewbieTrack</code>。<br>
+                    5. 讀取提供者歷史分享清單與受惠版友感謝卡片。
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">MeDto: { user | null, myQueue: MyQueueEntryDto | null, myConfirmedClaim, mySharedLinks[], vapidPublicKey, devLoginEnabled }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Security Invariants</div>
+                <div class="spec-val">在 reserved 狀態下嚴格禁止回傳邀請碼；僅在 revealed 與 confirmed 狀態才暴露邀請網址。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. POST /api/auth/google -->
+        <div class="api-card" data-category="auth" data-name="post /api/auth/google 谷歌登入">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/auth/google</span>
+              <span class="api-summary">Google OAuth2 ID Token 驗證登入</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-green">公開 (登入入口)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-client">Client</span>
+                  <span class="step-actor">googleIdToken.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">POST { idToken, nickname?: string }</span>
+                  <span class="step-note">前端透過 <code>resolveGoogleIdToken()</code> 取得 Google credential；未設定正式 Client ID 時，改送 <code>google-demo-&lt;暱稱&gt;</code> 展示用 token。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">zValidator</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">googleLoginSchema.parse(body)</span>
+                  <span class="step-note">校驗 idToken 為非空字串。不合規回傳 <code>400 INVALID_INPUT</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">authService.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">loginWithGoogle({ idToken, nickname, now })</span>
+                  <span class="step-note">development 環境接受展示用 token；其餘環境呼叫 <code>googleTokenVerifier()</code> 向 Google tokeninfo 驗證，檢查 aud 等於 <code>GOOGLE_CLIENT_ID</code> 後萃取 sub, email, name。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-repo">Repository</span>
+                  <span class="step-actor">userRepository.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">upsertUserByGoogleProfile() [Drizzle]</span>
+                  <span class="step-note">依 googleSub 查詢 users 表；不存在則插入，存在且 email 或暱稱有變才更新。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">authService.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">createSessionToken(userId, email, now)</span>
+                  <span class="step-note">簽發 30 天效期之 JWT (HS256)，路由寫入 <code>HttpOnly, SameSite=Lax</code> Cookie；非 development 環境另加 <code>Secure</code>。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Set-Cookie Header</div>
+                <div class="spec-val">claude_tw_session=eyJhbGci...; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Response (200 OK)</div>
+                <div class="spec-val">{ data: { user: LoggedInUserDto } }（{ id, email, nickname }）</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. POST /api/auth/dev-login -->
+        <div class="api-card" data-category="auth" data-name="post /api/auth/dev-login 開發者模擬登入">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/auth/dev-login</span>
+              <span class="api-summary">開發與測試環境快速登入</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-rose">僅 development 環境</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">Guard</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">env.ENVIRONMENT === 'development'</span>
+                  <span class="step-note">非 development 環境強制阻斷回傳 <code>403 UNAUTHORIZED</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">authService.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">loginWithDevAccount({ email, nickname })</span>
+                  <span class="step-note">透過 <code>userRepository.upsertUserByGoogleProfile</code> 建立使用者並簽發 Session。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response (200 OK)</div>
+                <div class="spec-val">{ data: { user: LoggedInUserDto } }（{ id, email, nickname }，附帶 Set-Cookie）</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">用途</div>
+                <div class="spec-val">供本機開發、Vitest 整合測試 (TestActor) 與效能壓測快速模擬多帳號。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. POST /api/auth/logout -->
+        <div class="api-card" data-category="auth" data-name="post /api/auth/logout 登出">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/auth/logout</span>
+              <span class="api-summary">登出並清除 Session Cookie</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-green">公開</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Controller</span>
+                  <span class="step-actor">Hono Route</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">deleteCookie(c, 'claude_tw_session', { path: '/' })</span>
+                  <span class="step-note">清除瀏覽器客戶端 Session 憑證。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response (200 OK)</div>
+                <div class="spec-val">{ data: { loggedOut: true } }</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. POST /api/links -->
+        <div class="api-card" data-category="provider" data-name="post /api/links 分享邀請連結">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/links</span>
+              <span class="api-summary">提供者分享邀請連結與可用名額 (觸發自動撮合)</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+              <span class="badge badge-purple">觸發 Web Push</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">auth + zValidator</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">submitLinkSchema + requireUserId()</span>
+                  <span class="step-note">先檢驗 <code>slotCount</code> 必須為 1, 2 或 3（預設 3）、<code>track</code> 必須為 newbie 或 community（預設 newbie），失敗回傳 <code>422 VALIDATION_ERROR</code>；再由 <code>requireUserId()</code> 擋下未登入的請求。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">submitInviteLink() → processExpirations(now)</span>
+                  <span class="step-note">先結算逾時名額，讓剛釋出的名額能在本次撮合中配出。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-domain">Domain Rules</span>
+                  <span class="step-actor">rules.ts (Normalization)</span>
+                </div>
+                <div class="step-desc">
+                  <span class="domain-symbol">extractAndNormalizeReferralLink(rawUrlInput)</span>
+                  <span class="step-note">自文字萃取代碼並消除 <code>?s=ios</code>。不符格式回傳 <code>400 INVALID_REFERRAL_URL</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-repo">Repository</span>
+                  <span class="step-actor">userRepository</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">findUserById() → isProviderBlocked(invalidLinkStrikeCount)</span>
+                  <span class="step-note">
+                    檢查提供者違規點數：點數在每次名額狀態改變時已同步，這裡直接讀取，不重算。若 <code>strikeCount >= 2</code> 阻擋回傳 <code>403 PROVIDER_BLOCKED</code>。
+                  </span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-d1">D1 Database</span>
+                  <span class="step-actor">Transaction (Batch)</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">createLinkWithSlots() — INSERT INTO invite_links + N x INSERT INTO invite_slots</span>
+                  <span class="step-note">
+                    批次寫入連結與 N 個狀態為 <code>available</code> 的名額，名額的 <code>track</code> 依提交時的選擇（newbie 或 community）。邀請代碼重複時違反 unique 約束，轉成 <code>409 DUPLICATE_REFERRAL_CODE</code>。
+                  </span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service & Repo</span>
+                  <span class="step-actor">matchAvailableSlotsToQueue()</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">fetchTracksWithWaitingEntries() → fetchAvailableSlotsForMatching() → fetchWaitingQueueEntriesForMatching()</span>
+                  <span class="step-note">先查哪些軌道有 waiting 票券，只讀這些軌道配得到的 available 名額，再每軌用 <code>ROW_NUMBER()</code> 取前 N 張票券（N = 名額數 x 2）。沒有名額或沒有票券時直接結束。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-domain">Matching Engine</span>
+                  <span class="step-actor">matchingEngine.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="domain-symbol">matchTicketsToAvailableSlots(availableSlots, waitingTickets)</span>
+                  <span class="step-note">純函式撮合：依軌道規則與 FIFO 排序指派給等候中的票券（newbie 名額只配新手票券，community 名額先配 community 票券），自動跳過提供者本人（防弊）。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service & Push</span>
+                  <span class="step-actor">inviteQueueService + webPushService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">assignSlotToQueueEntry() → dispatchPush() → sendNotificationToUser()</span>
+                  <span class="step-note">以帶守衛的 D1 batch 把名額與排隊紀錄更新為 <code>reserved</code> (6 小時保留期)；被別的請求搶先而拒絕時，重讀再配，最多 5 輪。推播交給 <code>runInBackground</code>（<code>ctx.waitUntil</code>）在回應之後送出：「輪到你領取 Claude 邀請碼」。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (201 Created)</div>
+                <div class="spec-val">{ data: { linkId: number, matchedCount: number } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="spec-val">
+                  <span class="side-effect-item se-engine">FIFO Auto Match</span>
+                  <span class="side-effect-item se-push">Web Push to Receivers</span>
+                  <span class="side-effect-item se-cache">Board Cache Invalidation</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. POST /api/queue -->
+        <div class="api-card" data-category="receiver" data-name="post /api/queue 加入排隊">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/queue</span>
+              <span class="api-summary">領取者加入排隊 (池中有碼時即刻配對)</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">auth + zValidator</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">joinQueueSchema + requireUserId()</span>
+                  <span class="step-note">校驗 <code>thankYouMessage</code> 5~200 字元（trim 後）、<code>track</code> 為 newbie 或 community（預設 newbie），失敗回傳 <code>422 VALIDATION_ERROR</code>。前端依 <code>isEligibleForNewbieTrack</code> 自動送出 <code>track</code>，畫面沒有軌道選項。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">joinQueue() → processExpirations(now) → assertEligibleForNewbieTrack()</span>
+                  <span class="step-note">
+                    先結算逾時。只有 <code>track</code> 為 newbie 時才檢查新手首發軌資格：<br>
+                    1. 並行讀取 <code>hasConfirmedClaimByUser()</code> 與 <code>hasSharedLinksByUser()</code>。任一軌道曾 confirmed，或曾分享過邀請連結，即不具資格。<br>
+                    2. 不具資格時，若使用者同時已在 waiting/reserved/revealed，先回傳 <code>409 ALREADY_IN_QUEUE</code>；否則回傳 <code>409 NEWBIE_TRACK_ONLY</code>。終身僅限領取 1 次的規則只適用新手首發軌，再領取軌不受限。
+                  </span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-d1">D1 Database</span>
+                  <span class="step-actor">queue_entries</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">createQueueEntry({ userId, thankYouMessage, track, nowIso })</span>
+                  <span class="step-note">寫入 <code>status = 'waiting'</code>、<code>priority = 0</code> 的排隊紀錄。使用者已有進行中的排隊時違反唯一索引，轉成 <code>409 ALREADY_IN_QUEUE</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service & Repo</span>
+                  <span class="step-actor">matchAvailableSlotsToQueue()</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">fetchTracksWithWaitingEntries() → fetchAvailableSlotsForMatching() → fetchWaitingQueueEntriesForMatching()</span>
+                  <span class="step-note">先查有 waiting 票券的軌道，只讀配得到的軌道的 available 名額，每軌用 <code>ROW_NUMBER()</code> 取前 N 張票券。池中沒有名額時直接結束，排隊紀錄維持 <code>waiting</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-domain">Matching Engine</span>
+                  <span class="step-actor">matchingEngine.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="domain-symbol">matchTicketsToAvailableSlots(availableSlots, waitingTickets)</span>
+                  <span class="step-note">若池中有可配對的名額，立即觸發撮合轉為 <code>reserved</code>，並由 <code>runInBackground</code> 在回應之後推播。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (201 Created)</div>
+                <div class="spec-val">{ data: { queueEntryId: number, status: 'waiting' | 'reserved' } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="spec-val">
+                  <span class="side-effect-item se-engine">Instant Pool Matching</span>
+                  <span class="side-effect-item se-cache">Board Cache Invalidation</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. POST /api/queue/reveal -->
+        <div class="api-card" data-category="receiver" data-name="post /api/queue/reveal 解鎖邀請碼">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/queue/reveal</span>
+              <span class="api-summary">解鎖看碼 (啟動 30 分鐘啟用倒數，具冪等性)</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">revealSlot(userId, now)</span>
+                  <span class="step-note">
+                    1. 先 <code>processExpirations(now)</code> 結算逾時：保留已逾時者名額已收回、排隊紀錄為 <code>expired</code>，回傳 <code>409 RESERVATION_EXPIRED</code>。<br>
+                    2. 檢查使用者排隊狀態：必須為 <code>reserved</code> 或已 <code>revealed</code>，其餘狀態回傳 <code>409 INVALID_STATE_TRANSITION</code>，沒有任何排隊紀錄回傳 <code>404 QUEUE_ENTRY_NOT_FOUND</code>。
+                  </span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-repo">Repository</span>
+                  <span class="step-actor">inviteQueueRepository</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">revealReservedSlot({ slotId, queueEntryId, userId, nowIso, confirmExpiresAtIso = now + 30m })</span>
+                  <span class="step-note">D1 batch 以 <code>reserve_expires_at > now</code> 守衛，名額與排隊紀錄一併流轉為 <code>revealed</code>，並設定 30 分鐘自動確認期限；守衛未通過（保留剛好逾時）回傳 <code>409 RESERVATION_EXPIRED</code>。若已是 revealed 則冪等回傳相同網址。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">{ data: { referralUrl: string, confirmExpiresAt: string } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Idempotency</div>
+                <div class="spec-val">在 30 分鐘有效窗口內重複呼叫皆保證回傳相同資料，不重複扣減或展延時間。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 9. POST /api/queue/confirm -->
+        <div class="api-card" data-category="receiver" data-name="post /api/queue/confirm 確認啟用">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/queue/confirm</span>
+              <span class="api-summary">確認啟用並送出感謝留言 (上感謝牆與通知提供者)</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+              <span class="badge badge-purple">觸發 Web Push</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">confirmSlot(userId, now)</span>
+                  <span class="step-note">確認當前狀態為 <code>revealed</code>。若已 confirmed 則冪等成功，其餘狀態回傳 409，沒有任何排隊紀錄回傳 404。此函式不會先 <code>processExpirations</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-d1">D1 Database</span>
+                  <span class="step-actor">invite_slots & queue_entries</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">confirmRevealedSlot() — UPDATE status = 'confirmed', confirmed_at = now</span>
+                  <span class="step-note">終態寫入，此名額正式兌現，永久鎖定。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Push & Wall</span>
+                  <span class="step-actor">inviteQueueService + webPushService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">notifyProviderOnSlotConfirmed() → syncProviderStrikeCount() → dispatchPush() → onBoardChanged()</span>
+                  <span class="step-note">重算提供者違規計數後，由 <code>runInBackground</code> 在回應之後推播通知提供者：「你分享的邀請碼已成功幫助社友 [領取者]」，內文附上領取者的感謝小卡；並呼叫 <code>invalidateBoardCache()</code> 使首頁感謝牆即刻更新。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">{ data: { confirmed: true } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="spec-val">
+                  <span class="side-effect-item se-push">Push Provider Thank You</span>
+                  <span class="side-effect-item se-cache">Wall Cache Invalidation</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10. POST /api/queue/report-invalid -->
+        <div class="api-card" data-category="receiver" data-name="post /api/queue/report-invalid 回報無效">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/queue/report-invalid</span>
+              <span class="api-summary">回報代碼無效 (同組隔離、提供者扣點、priority=1 優先重排)</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+              <span class="badge badge-rose">終身限 1 次</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">reportSlotInvalid(userId, now)</span>
+                  <span class="step-note">
+                    1. 先 <code>processExpirations(now)</code> 結算逾時；沒有任何排隊紀錄回傳 <code>404 QUEUE_ENTRY_NOT_FOUND</code>。<br>
+                    2. 排隊紀錄已 <code>confirmed</code>：回傳 <code>409 CONFIRM_WINDOW_EXPIRED</code>。<br>
+                    3. 檢查 <code>user.invalidRetryCount >= 1</code>：若已使用過無效重排機會，回傳 <code>409 RETRY_QUOTA_EXHAUSTED</code>。<br>
+                    4. 狀態必須為 <code>revealed</code>（否則 <code>409 INVALID_STATE_TRANSITION</code>），且 <code>canUserReportInvalid()</code> 確認尚在解鎖後 30 分鐘內（否則 <code>409 CONFIRM_WINDOW_EXPIRED</code>）。
+                  </span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-repo">Repository</span>
+                  <span class="step-actor">inviteQueueRepository</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">reportInvalidAndRequeue() [原子交易]</span>
+                  <span class="step-note">
+                    1. 將當前名額標為 <code>invalidated</code>。<br>
+                    2. <strong>同組名額隔離</strong>：關閉該連結所有仍處於 <code>available</code> 的名額 (標為 <code>closed</code>)，避免其他版友踩雷；已配給他人的 reserved 名額不受影響。<br>
+                    3. 領取者 <code>invalid_retry_count + 1</code>。<br>
+                    4. 領取者重新入隊，標記 <code>priority = 1</code>（插隊優先權），軌道維持原樣。
+                  </span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-domain">Service + Domain</span>
+                  <span class="step-actor">inviteQueueService + rules.ts (Strikes)</span>
+                </div>
+                <div class="step-desc">
+                  <span class="domain-symbol">syncProviderStrikeCount(providerUserId)</span>
+                  <span class="step-note">好心人保護計算：重算提供者名下的完全無效連結數並寫回 <code>invalid_link_strike_count</code>。若該連結有至少 1 名額 confirmed 則不計入；達 2 組完全無效連結即停權，下次提交連結回傳 <code>403 PROVIDER_BLOCKED</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-domain">Matching Engine</span>
+                  <span class="step-actor">matchingEngine.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="domain-symbol">matchAvailableSlotsToQueue() → matchTicketsToAvailableSlots()</span>
+                  <span class="step-note">若池中有其他提供者釋出的名額，由於該領取者具備 priority=1，在同一軌道內將超越一般排隊者優先獲配（優先權不跨軌道，community 名額仍先配給 community 票券）。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">{ data: { requeuedStatus: 'waiting' | 'reserved' } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="spec-val">
+                  <span class="side-effect-item se-strike">Sibling Slots Closed</span>
+                  <span class="side-effect-item se-strike">Provider Strike Sync</span>
+                  <span class="side-effect-item se-engine">Priority Re-Match</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 11. POST /api/queue/cancel -->
+        <div class="api-card" data-category="receiver" data-name="post /api/queue/cancel 放棄排隊">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/queue/cancel</span>
+              <span class="api-summary">放棄排隊 (釋出保留名額並自動轉配下一位)</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">inviteQueueService</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">cancelQueue(userId, now)</span>
+                  <span class="step-note">先 <code>processExpirations(now)</code> 結算逾時，再依最近一筆排隊紀錄判斷：僅允許在 <code>waiting</code> 或 <code>reserved</code> 狀態取消。若為 <code>revealed</code>、<code>confirmed</code>、<code>expired</code> 或 <code>cancelled</code> 則回傳 <code>409 INVALID_STATE_TRANSITION</code>；沒有任何排隊紀錄回傳 <code>404 QUEUE_ENTRY_NOT_FOUND</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-repo">Repository</span>
+                  <span class="step-actor">inviteQueueRepository</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">cancelWaitingQueueEntry() / cancelReservedQueueEntryAndReleaseSlot() [D1 Batch]</span>
+                  <span class="step-note">標記排隊紀錄狀態為 <code>cancelled</code>。若原先持有 reserved 名額，將該名額退回 <code>available</code>（同一組連結已有名額被回報無效時改為 <code>closed</code>），並重算提供者違規計數。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-domain">Matching Engine</span>
+                  <span class="step-actor">matchingEngine.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="domain-symbol">matchAvailableSlotsToQueue() → matchTicketsToAvailableSlots()</span>
+                  <span class="step-note">取消 reserved 時退回的名額立即觸發撮合，依軌道規則無縫自動轉配給後續等待的排隊者；取消 waiting 不釋出名額，不觸發撮合。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">{ data: { cancelled: true } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="spec-val">
+                  <span class="side-effect-item se-engine">Slot Released & Re-assigned</span>
+                  <span class="side-effect-item se-cache">Board Cache Invalidation</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 12. POST /api/push/subscribe -->
+        <div class="api-card" data-category="public" data-name="post /api/push/subscribe 訂閱推播">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/push/subscribe</span>
+              <span class="api-summary">註冊或更新瀏覽器 Web Push 憑證</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">auth + zValidator</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">pushSubscribeSchema.parse(body)</span>
+                  <span class="step-note">驗證 endpoint 為合法網址，keys.p256dh 與 keys.auth 為非空字串，失敗回傳 <code>422 VALIDATION_ERROR</code>。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-repo">Repository</span>
+                  <span class="step-actor">webPushService → pushSubscriptionRepository.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="repo-symbol">saveSubscription() → upsertPushSubscription() [Drizzle]</span>
+                  <span class="step-note">以 endpoint 為鍵進行 Upsert，維護該帳號的推播金鑰與時間戳。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">{ data: { subscribed: true } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">404／410 自癒機制</div>
+                <div class="spec-val">推播伺服器回報 404 或 410 Gone 時，WebPushService 會自動刪除該失效訂閱，不中斷配對業務。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 13. POST /api/push/test -->
+        <div class="api-card" data-category="public" data-name="post /api/push/test 發送測試推播">
+          <div class="api-header" onclick="toggleApiBody(this)">
+            <div class="api-identity">
+              <span class="method-tag method-post">POST</span>
+              <span class="api-endpoint">/api/push/test</span>
+              <span class="api-summary">向當前登入使用者的已訂閱裝置發送測試推播</span>
+            </div>
+            <div class="api-meta">
+              <span class="badge badge-amber">需登入 (Cookie)</span>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="flow-steps">
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-middleware">Middleware</span>
+                  <span class="step-actor">requireUserId(c)</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">c.get('userId')</span>
+                  <span class="step-note">由 HttpContext 提取已通過 JWT 簽章驗證之 userId。</span>
+                </div>
+              </div>
+              <div class="flow-step">
+                <div class="step-source">
+                  <span class="step-layer layer-lbl-service">Service</span>
+                  <span class="step-actor">webPushService.ts</span>
+                </div>
+                <div class="step-desc">
+                  <span class="code-symbol">sendNotificationToUser(userId, payload)</span>
+                  <span class="step-note">查詢所有訂閱裝置並依 VAPID 規範以 AES-128-GCM 加密派發推播。若無訂閱裝置則回傳友善提示。</span>
+                </div>
+              </div>
+            </div>
+            <div class="specs-grid">
+              <div class="spec-block">
+                <div class="spec-title">Response DTO (200 OK)</div>
+                <div class="spec-val">{ data: { sent: boolean, deliveredCount: number, message: string } }</div>
+              </div>
+              <div class="spec-block">
+                <div class="spec-title">Side Effects</div>
+                <div class="side-effects">
+                  <span class="side-effect-item se-push">Web Push Test Notification</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 3: LIFECYCLE & STATE MACHINE -->
+    <div id="lifecycle-tab" class="tab-panel">
+      
+      <div class="state-flow-card">
+        <div class="state-title">1. 名額 (Slot) 完整狀態轉移流 (Slot State Machine)</div>
+        <p class="subtitle">追蹤從提供者釋出名額到最終兌現或回收的嚴格有限狀態流：</p>
+        <div class="state-diagram-box">
+[建立釋出]
+   │
+   ▼
+AVAILABLE ──(撮合引擎 matchTicketsToAvailableSlots)──► RESERVED (6 小時保留看碼窗口)
+   │                                                         │
+   │ (同組無效隔離)                                           ├──(逾時 6h 未解鎖 或 領取者放棄保留)──► AVAILABLE，立即重新撮合 (同連結已有 INVALIDATED 名額時改為 CLOSED)
+   ▼                                                         │
+ CLOSED                                                      └──(領取者點擊解鎖)──► REVEALED (30 分鐘啟用窗口)
+                                                                                       │
+                                                               ├──(滿 30 分鐘或點擊確認)──► CONFIRMED (感謝上牆、推播)
+                                                               │
+                                                               └──(回報無效)──► INVALIDATED (同組可用關閉、記點)
+        </div>
+      </div>
+
+      <div class="state-flow-card">
+        <div class="state-title">2. 領取者排隊紀錄 (QueueEntry) 狀態流 (Queue Entry State Machine)</div>
+        <p class="subtitle">追蹤領取者加入隊列至成功啟用或重排的生命週期（每筆排隊紀錄屬於 newbie 或 community 其中一個軌道）：</p>
+        <div class="state-diagram-box">
+[加入排隊 POST /api/queue]
+   │
+   ▼
+WAITING (順位計算 queuePosition，所有軌道合併 FIFO)
+   │
+   ├──(使用者手動取消)──► CANCELLED
+   │
+   ▼ (撮合引擎指派)
+RESERVED (隱蔽邀請碼，通知領取者)
+   │
+   ├──(使用者放棄保留)──► CANCELLED (名額釋出並重新撮合)
+   │
+   ├──(逾時 6 小時未解鎖)──► EXPIRED (名額釋出，領取者可重新在隊尾排隊)
+   │
+   ▼ (解鎖看碼 POST /api/queue/reveal)
+REVEALED (顯示 referralUrl，啟動 30 分鐘倒數計時)
+   │
+   ├──(點擊確認 或 30 分鐘到期)──► CONFIRMED (兌現終態，獲得邀請碼；不能再排新手首發軌，但可改排再領取軌)
+   │
+   ▼ (回報無效 POST /api/queue/report-invalid)
+WAITING (priority = 1 插隊優先重排，軌道不變，僅限 1 次機會)
+        </div>
+      </div>
+
+      <div class="state-flow-card">
+        <div class="state-title">3. 定時與延遲結算週期 (Lazy Expiration Engine)</div>
+        <p class="subtitle">Workers 上沒有常駐程序，逾時名額由 Cron Trigger 與「請求延遲結算」兩種機制共同結算：</p>
+        <ul style="padding-left: 1.5rem; color: var(--text-muted); font-size: 0.95rem; line-height: 1.8;">
+          <li><strong>觸發時機</strong>：<code>processExpirations(now)</code> 有四種觸發時機。一是 <code>wrangler.toml</code> 的 <code>crons = ["*/5 * * * *"]</code>，每 5 分鐘由 <code>scheduled()</code> 執行；二是登入狀態的 <code>GET /api/me</code>；三是 <code>GET /api/board</code> 在看板快取（15 秒）過期時；四是提交連結、加入排隊、取消、解鎖、回報無效這幾支寫入 API 在處理前先結算。確認啟用的 API 不會先結算。</li>
+          <li><strong>6 小時保留逾時清理</strong>：尋找 <code>queue_entries.status = 'reserved' AND reserve_expires_at &lt;= now</code>（每次最多 100 筆）。將 queue entry 標為 <code>expired</code>，並將 slot 退回 <code>available</code>（同連結已有 <code>invalidated</code> 名額時改為 <code>closed</code>）；有名額釋出時再呼叫 <code>matchAvailableSlotsToQueue()</code>，依軌道規則重新自動配對給下一位等候者，無人等候則維持 <code>available</code>。</li>
+          <li><strong>30 分鐘自動確認結算</strong>：尋找 <code>queue_entries.status = 'revealed' AND confirm_expires_at &lt;= now</code>（每次最多 100 筆）。自動轉為 <code>confirmed</code>，將感謝小卡更新至感謝牆；重算提供者違規計數與撮合之後，才由 <code>runInBackground</code> 發送推播通知提供者。只有成功把狀態改為 <code>confirmed</code> 的那一次結算會發送推播，不會重複發送。</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- TAB 4: MERMAID INTERACTIVE DIAGRAMS -->
+    <div id="mermaid-tab" class="tab-panel">
+
+      <div class="state-flow-card">
+        <div class="state-title">1. 全局分層架構與核心調用依賴 (Flowchart)</div>
+        <p class="subtitle">從表現層、Hono Gateway、服務大腦、純領域撮合引擎到 D1 資料庫：</p>
+        <div class="state-diagram-box" style="background: rgba(15, 23, 42, 0.8);">
+          <pre class="mermaid">
+flowchart TD
+    subgraph Client ["表現層 Client"]
+        UI["React 19 (App / Panels / PWA)"]
+        A2HS["📲 一鍵加入主畫面 (usePwaInstall)"]
+        ApiClient["apiClient.ts (Fetch + Session Cookie)"]
+    end
+
+    subgraph Gateway ["接入與中介層 Gateway"]
+        Router["Hono v4 App Router"]
+        AuthMid["Session 中介層 (JWT Cookie 檢驗 + createServices)"]
+        Validator["zValidator (Zod Input Validation)"]
+        ErrBoundary["app.onError (統一 AppError 映射)"]
+    end
+
+    subgraph Service ["應用服務層 Application Services"]
+        InviteSvc["inviteQueueService.ts (業務編排大腦)"]
+        AuthSvc["authService.ts (Google / Dev 登入)"]
+        PushSvc["webPushService.ts (VAPID 簽章與酬載加密)"]
+        BoardQry["boardQuery.ts (15s 記憶體快取)"]
+    end
+
+    subgraph Domain ["純領域核心 Domain Core (揚棄 entity 泛稱)"]
+        MatchEngine["matchingEngine.ts (雙軌 FIFO 撮合、自我防弊)"]
+        RuleNormalize["rules.ts (URL 正規化去除 ?s=ios)"]
+        RuleStrikes["rules.ts (好心人保護與停權記點)"]
+        RuleNewbie["rules.ts (新手首發軌資格)"]
+    end
+
+    subgraph DataAccess ["資料存取層 Repositories"]
+        UserRepo["userRepository.ts (Drizzle ORM)"]
+        PushRepo["pushSubscriptionRepository.ts (Drizzle ORM)"]
+        InviteRepo["inviteQueueRepository.ts (D1 交易)"]
+    end
+
+    subgraph Storage ["儲存與邊緣基礎設施 Storage"]
+        D1[("Cloudflare D1 SQLite Database")]
+        WebPushGateway["Web Push 閘道 (Apple / Google)"]
+    end
+
+    UI --> ApiClient
+    A2HS -.-> UI
+    ApiClient --> Router
+    Router --> AuthMid
+    Router --> Validator
+    Router --> ErrBoundary
+
+    AuthMid --> AuthSvc
+    Router --> InviteSvc
+    Router --> PushSvc
+    Router --> BoardQry
+
+    AuthSvc --> UserRepo
+    InviteSvc --> RuleNormalize
+    InviteSvc --> RuleStrikes
+    InviteSvc --> RuleNewbie
+    InviteSvc --> MatchEngine
+    InviteSvc --> InviteRepo
+    InviteSvc --> UserRepo
+    InviteSvc -.->|runInBackground / waitUntil| PushSvc
+    PushSvc --> PushRepo
+    PushSvc --> WebPushGateway
+
+    BoardQry --> D1
+
+    UserRepo --> D1
+    PushRepo --> D1
+    InviteRepo --> D1
+          </pre>
+        </div>
+      </div>
+
+      <div class="state-flow-card">
+        <div class="state-title">2. 領取與分享核心旅程 (Happy Path Sequence Diagram)</div>
+        <p class="subtitle">使用者排隊、提供者分享、FIFO 撮合、6 小時解鎖看碼到確認啟用上牆：</p>
+        <div class="state-diagram-box" style="background: rgba(15, 23, 42, 0.8);">
+          <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor User as 領取者 (Receiver)
+  actor Provider as 提供者 (Provider)
+  participant Hono as Hono Router / Middleware
+  participant QueueSvc as InviteQueueService
+  participant Engine as MatchingEngine (Domain)
+  participant Repo as InviteQueueRepository (D1)
+  participant PushSvc as WebPushService
+
+  Note over User, Provider: 1. 領取者排隊
+  User->>Hono: POST /api/queue { thankYouMessage, track: 'newbie' }
+  Hono->>Hono: Session 中介層解析 JWT + zValidator 檢驗小卡長度 (5~200 字)
+  Hono->>QueueSvc: joinQueue(userId, thankYouMessage, track)
+  QueueSvc->>QueueSvc: processExpirations(now) 先結算逾時
+  QueueSvc->>Repo: hasConfirmedClaimByUser 與 hasSharedLinksByUser (僅新手首發軌檢查資格)
+  QueueSvc->>Repo: createQueueEntry(status: 'waiting', priority: 0, track)
+  QueueSvc->>Repo: fetchTracksWithWaitingEntries -> fetchAvailableSlotsForMatching
+  Note right of Repo: 池中尚無名額 -> 不進撮合引擎，維持 waiting
+  QueueSvc-->>User: 201 Created { queueEntryId, status: 'waiting' }
+
+  Note over Provider, Repo: 2. 提供者分享邀請碼
+  Provider->>Hono: POST /api/links { rawUrlInput, slotCount: 2, track: 'newbie' }
+  Hono->>QueueSvc: submitInviteLink(providerId, url, 2, track)
+  QueueSvc->>QueueSvc: processExpirations(now) 先結算逾時
+  QueueSvc->>QueueSvc: extractAndNormalizeReferralLink(url) 去除 ?s=ios
+  QueueSvc->>QueueSvc: isProviderBlocked(invalidLinkStrikeCount) 讀取 users 表的違規計數
+  QueueSvc->>Repo: 批次寫入 invite_links + 2 x invite_slots (available, track)
+  QueueSvc->>Repo: fetchTracksWithWaitingEntries -> fetchAvailableSlotsForMatching -> fetchWaitingQueueEntriesForMatching
+  QueueSvc->>Engine: matchTicketsToAvailableSlots(availableSlots, waitingTickets)
+  Note right of Engine: 依軌道規則 FIFO 撮合等候票券，自動跳過提供者自己
+  Engine-->>QueueSvc: 回傳指派配對清單 [ { slot, ticket } ]
+  QueueSvc->>Repo: assignSlotToQueueEntry (status: 'reserved', 鎖定 6 小時保留期)
+  QueueSvc->>PushSvc: sendNotificationToUser(userId, '輪到你領取 Claude 邀請碼') 由 runInBackground 在回應後送出
+  PushSvc-->>User: 📱 Web Push 彈出提醒
+
+  Note over User, Repo: 3. 領取者解鎖看碼 (6h 內)
+  User->>Hono: POST /api/queue/reveal
+  Hono->>QueueSvc: revealSlot(userId)
+  QueueSvc->>QueueSvc: processExpirations(now) 先結算逾時
+  QueueSvc->>Repo: revealReservedSlot (status: 'revealed', confirmExpiresAt: now + 30m)
+  QueueSvc-->>User: 200 OK { referralUrl, confirmExpiresAt }
+
+  Note over User, PushSvc: 4. 確認啟用與感謝推播
+  User->>Hono: POST /api/queue/confirm
+  Hono->>QueueSvc: confirmSlot(userId)
+  QueueSvc->>Repo: confirmRevealedSlot (slot 與 queue entry status = 'confirmed')
+  QueueSvc->>PushSvc: sendNotificationToUser(providerId, '你分享的邀請碼已成功幫助社友 小華') 由 runInBackground 在回應後送出
+  PushSvc-->>Provider: 💌 Web Push 感謝推播
+  QueueSvc->>QueueSvc: onBoardChanged() 即 invalidateBoardCache()，看板即刻上牆
+  QueueSvc-->>User: 200 OK { confirmed: true }
+          </pre>
+        </div>
+      </div>
+
+      <div class="state-flow-card">
+        <div class="state-title">3. 異常回報、同組名額隔離與優先重排 (Error Recovery Sequence Diagram)</div>
+        <p class="subtitle">回報無效同組可用名額隔離、好心人保護判定與 priority=1 插隊優先重排：</p>
+        <div class="state-diagram-box" style="background: rgba(15, 23, 42, 0.8);">
+          <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor User as 領取者 (Receiver)
+  actor Provider as 提供者 (Provider)
+  participant Hono as Hono Router / Middleware
+  participant QueueSvc as InviteQueueService
+  participant Engine as MatchingEngine (Domain)
+  participant Rules as Domain Rules
+  participant Repo as InviteQueueRepository (D1)
+  participant UserRepo as UserRepository (Drizzle)
+
+  Note over User, Repo: 領取者回報邀請碼無效
+  User->>Hono: POST /api/queue/report-invalid
+  Hono->>QueueSvc: reportSlotInvalid(userId)
+  QueueSvc->>QueueSvc: processExpirations(now) 先結算逾時
+  QueueSvc->>UserRepo: findUserById(userId) -> 檢查 invalidRetryCount < 1 (終身 1 次)
+  QueueSvc->>Rules: canUserReportInvalid(...) 檢查仍在解鎖後 30 分鐘內
+  QueueSvc->>Repo: reportInvalidAndRequeue(slotId, linkId, queueEntryId, userId) [原子交易]
+  Note over Repo: 1. 當前 slot 標記為 invalidated<br/>2. 同組可用名額批次標記 closed (避免他人踩雷)<br/>3. 已配給他人的 reserved 名額不受影響 (隔離保護)<br/>4. 領取者重新入隊並標記 priority = 1 (優先權)，軌道不變
+  QueueSvc->>Repo: fetchProviderLinksSlotStatuses(providerId)
+  QueueSvc->>Rules: isCompletelyInvalidLink(statuses)
+  Rules-->>QueueSvc: 計算結果 (好心人保護：有 1 名額 confirmed 則不記違規；全無效則記點)
+  QueueSvc->>UserRepo: updateProviderStrikeCount(providerId, strikeCount)
+  QueueSvc->>Engine: matchTicketsToAvailableSlots(availableSlots, waitingTickets)
+  Note right of Engine: 領取者因 priority=1，在同一軌道內超越一般排隊者，優先獲配池中備用名額
+  QueueSvc-->>User: 200 OK { requeuedStatus: 'reserved' }
+          </pre>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <footer>
+    <p>Claude Taiwan Community Invite Queue Platform · Architecture & Call Chains Spec · 2026</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+      event.currentTarget.classList.add('active');
+      const targetPanel = document.getElementById(tabId);
+      targetPanel.classList.add('active');
+
+      if (window.mermaid) {
+        setTimeout(() => {
+          mermaid.run();
+        }, 50);
+      }
+    }
+
+    function toggleApiBody(headerEl) {
+      const body = headerEl.nextElementSibling;
+      if (body.style.display === 'none') {
+        body.style.display = 'block';
+      } else {
+        body.style.display = 'none';
+      }
+    }
+
+    function filterApis(category) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+
+      const cards = document.querySelectorAll('.api-card');
+      cards.forEach(card => {
+        if (category === 'all' || card.getAttribute('data-category') === category) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    function searchApis() {
+      const q = document.getElementById('api-search').value.toLowerCase();
+      const cards = document.querySelectorAll('.api-card');
+      cards.forEach(card => {
+        const name = card.getAttribute('data-name').toLowerCase();
+        if (name.includes(q)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

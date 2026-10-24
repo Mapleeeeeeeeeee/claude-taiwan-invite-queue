@@ -1,0 +1,9 @@
+# 複製成 .dev.vars 後，`pnpm dev:worker` 會自動載入。
+# wrangler.toml 不放任何環境變數，沒有 ENVIRONMENT=development 時 Worker 一律當正式環境處理。
+# 下面的 VAPID 金鑰是 web-push 文件的公開範例，只供本機開發；正式環境用 `wrangler secret put` 設定自己的值。
+ENVIRONMENT=development
+SESSION_SECRET=dev-session-secret-change-in-production
+GOOGLE_CLIENT_ID=dev-google-client-id
+VAPID_PUBLIC_KEY=BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U
+VAPID_PRIVATE_KEY=UUxI4O8-FbRouAevSmBQ6o18hgE4nSG3qwvJTfKc-ls
+VAPID_SUBJECT=mailto:admin@claude-tw.example.com

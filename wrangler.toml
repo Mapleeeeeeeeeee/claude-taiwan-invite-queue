@@ -1,0 +1,37 @@
+name = "claude-tw-invite"
+main = "src/worker/index.ts"
+compatibility_date = "2025-02-14"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "claude-tw-invite-db"
+database_id = "9948f593-0eae-4d06-be87-0d4b496e73af"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# 這裡刻意不放 [vars]：沒有 ENVIRONMENT=development 時，Worker 一律當正式環境，
+# 缺 SESSION_SECRET / GOOGLE_CLIENT_ID / VAPID_* 會直接讓請求失敗，而不是放行 dev-login。
+# 本機開發值放在 .dev.vars（範本見 .dev.vars.example），正式環境用 `wrangler secret put` 設定。
+
+# 寫入 API（建立連結、排隊、解鎖、確認、取消、回報無效、推播訂閱）以登入使用者 id 為 key 限流：
+# 每人每 60 秒最多 20 次，超過回 429 RATE_LIMITED。period 只接受 10 或 60；程式端不重複這兩個數字。
+# Cloudflare 的計數是各資料中心各自近似、最終一致，本機 `wrangler dev` 則是精確的固定視窗，
+# 所以這只用來擋失控的重複請求，不是嚴格配額。ratelimits 不會被 [env.*] 繼承，新增環境要各自宣告。
+[[ratelimits]]
+name = "WRITE_RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60

@@ -1,0 +1,20 @@
+# 依賴與建置產物
+node_modules/
+dist/
+.vitest/
+tsconfig.tsbuildinfo
+
+# wrangler 的本機 D1 狀態與暫存
+.wrangler/
+
+# 本機開發的環境變數；範本是 .dev.vars.example
+.dev.vars
+.env
+.env.*
+
+# Claude Code 的本機設定與 agent 記憶
+.claude/
+
+# 系統與編輯器
+.DS_Store
+*.log
