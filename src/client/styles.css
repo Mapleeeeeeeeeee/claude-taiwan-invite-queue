@@ -2467,13 +2467,22 @@ dialog.spotlight-dialog::backdrop {
   }
 
   .slot-selector-group {
-    grid-template-columns: 1fr;
     gap: 8px;
   }
 
   .track-selector-group {
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .track-option-btn {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  .track-option-sub {
+    font-size: 0.72rem;
+    margin-top: 2px;
   }
 
   .stat-metric-breakdown {
@@ -2481,7 +2490,8 @@ dialog.spotlight-dialog::backdrop {
   }
 
   .slot-option-btn {
-    padding: 8px;
+    min-height: 44px;
+    padding: 6px 4px;
   }
 
   .thank-you-card {
