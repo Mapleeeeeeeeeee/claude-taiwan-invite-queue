@@ -2471,13 +2471,17 @@ dialog.spotlight-dialog::backdrop {
   }
 
   .track-selector-group {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    gap: 8px;
   }
 
   .track-option-btn {
     min-height: 44px;
-    padding: 8px 12px;
+    padding: 8px 10px;
+  }
+
+  /* 兩欄時卡片只剩約 150px 寬，標題不鎖字會把「（預設）」從中間折成兩行。 */
+  .track-option-btn strong {
+    word-break: keep-all;
   }
 
   .track-option-sub {
